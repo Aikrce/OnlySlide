@@ -1,0 +1,13 @@
+.DS_Store
+.build
+xcuserdata
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+DerivedData/
+.swiftpm/
+# 备份目录
+~/Documents/OnlySlide/Backups/
+# Xcode
+*.xcworkspace
+*.xcuserstate
+.netrc

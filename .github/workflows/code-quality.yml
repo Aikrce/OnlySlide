@@ -1,0 +1,85 @@
+name: Code Quality Check
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  quality:
+    runs-on: macos-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Swift
+      uses: swift-actions/setup-swift@v1
+      
+    - name: Install Dependencies
+      run: |
+        brew install swiftlint
+        brew install xcbeautify
+        
+    - name: Run SwiftLint
+      run: swiftlint lint --strict
+      
+    - name: Build and Test
+      run: |
+        xcodebuild test \
+          -scheme OnlySlide \
+          -destination 'platform=iOS Simulator,name=iPhone 14' \
+          -enableCodeCoverage YES \
+          | xcbeautify
+          
+    - name: Check Test Coverage
+      run: |
+        coverage=$(xcrun xccov view --report --json DerivedData/Logs/Test/*.xcresult | jq '.targets[] | select(.name=="OnlySlide") | .lineCoverage')
+        if (( $(echo "$coverage < 0.8" | bc -l) )); then
+          echo "Test coverage ($coverage) is below minimum requirement (0.8)"
+          exit 1
+        fi
+        
+    - name: Run Architecture Check
+      run: ./Scripts/check_architecture.sh
+      
+    - name: Run Documentation Check
+      run: ./Scripts/check_documentation.sh
+      
+    - name: Run Performance Check
+      run: ./Scripts/check_performance.sh
+      
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v2
+      with:
+        name: test-results
+        path: DerivedData/Logs/Test
+      
+    - name: Upload Coverage Report
+      uses: actions/upload-artifact@v2
+      with:
+        name: coverage-report
+        path: DerivedData/Logs/Test/*.xcresult
+        
+  deploy:
+    needs: quality
+    runs-on: macos-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.0'
+        
+    - name: Install Fastlane
+      run: gem install fastlane
+      
+    - name: Deploy to TestFlight
+      run: fastlane beta
+      env:
+        FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD: ${{ secrets.FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD }}
+        FASTLANE_PASSWORD: ${{ secrets.FASTLANE_PASSWORD }}
+        MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }} 

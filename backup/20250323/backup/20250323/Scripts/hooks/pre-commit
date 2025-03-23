@@ -1,0 +1,57 @@
+#!/bin/bash
+
+echo "执行提交前检查..."
+
+# 1. 运行 SwiftLint
+echo "运行 SwiftLint 检查..."
+if which swiftlint >/dev/null; then
+    swiftlint lint --strict
+    if [ $? -ne 0 ]; then
+        echo "SwiftLint 检查失败，请修复上述问题"
+        exit 1
+    fi
+else
+    echo "SwiftLint 未安装，请运行 'brew install swiftlint' 安装"
+    exit 1
+fi
+
+# 2. 运行单元测试
+echo "运行单元测试..."
+xcodebuild test \
+    -scheme OnlySlide \
+    -destination 'platform=iOS Simulator,name=iPhone 14' \
+    -enableCodeCoverage YES | xcpretty
+
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    echo "单元测试失败，请修复测试问题"
+    exit 1
+fi
+
+# 3. 检查测试覆盖率
+echo "检查测试覆盖率..."
+coverage=$(xcrun xccov view --report --json DerivedData/Logs/Test/*.xcresult | jq '.targets[] | select(.name=="OnlySlide") | .lineCoverage')
+min_coverage=0.8
+
+if (( $(echo "$coverage < $min_coverage" | bc -l) )); then
+    echo "测试覆盖率 ($coverage) 低于要求的最小值 ($min_coverage)"
+    exit 1
+fi
+
+# 4. 检查文档完整性
+echo "检查文档完整性..."
+./Scripts/check_documentation.sh
+if [ $? -ne 0 ]; then
+    echo "文档检查失败，请确保所有公开API都有文档注释"
+    exit 1
+fi
+
+# 5. 检查依赖注入规范
+echo "检查依赖注入规范..."
+./Scripts/check_dependency_injection.sh
+if [ $? -ne 0 ]; then
+    echo "依赖注入检查失败，请遵循依赖注入规范"
+    exit 1
+fi
+
+echo "所有检查通过！"
+exit 0 
