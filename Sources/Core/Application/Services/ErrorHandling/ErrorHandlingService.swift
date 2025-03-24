@@ -1,10 +1,10 @@
 import Foundation
-import Logging
+import os.log
 
 /// 错误处理服务
 public final class ErrorHandlingService {
     // MARK: - Properties
-    private let logger = Logger(label: "com.onlyslide.errorhandling")
+    private let logger = os.Logger(subsystem: "com.onlyslide", category: "errorhandling")
     
     // MARK: - Initialization
     public init() {
@@ -74,6 +74,8 @@ public final class ErrorHandlingService {
                 return true
             case .criticalError, .systemError:
                 return false
+            case .databaseError, .configurationError:
+                return false
             }
         }
         
@@ -110,6 +112,22 @@ public final class ErrorHandlingService {
             case .dataError:
                 // 数据错误恢复策略
                 logger.info("应用数据恢复策略")
+                
+            case .systemError:
+                // 系统错误恢复策略
+                logger.info("应用系统恢复策略")
+                
+            case .criticalError:
+                // 严重错误恢复策略
+                logger.info("应用严重错误恢复策略")
+                
+            case .databaseError(let coreDataError):
+                // 数据库错误恢复策略
+                logger.info("应用数据库恢复策略: \(coreDataError.errorDescription ?? "未知错误")")
+                
+            case .configurationError(let message):
+                // 配置错误恢复策略
+                logger.info("应用配置恢复策略: \(message)")
                 
             default:
                 logger.warning("没有为此错误类型定义恢复策略: \(appError)")
@@ -159,6 +177,8 @@ public enum AppError: Error {
     case temporaryFailure(String)
     case systemError(String)
     case criticalError(String)
+    case databaseError(CoreDataError)
+    case configurationError(String)
 }
 
 // MARK: - LocalizedError
@@ -179,6 +199,10 @@ extension AppError: LocalizedError {
             return "系统错误: \(message)"
         case .criticalError(let message):
             return "严重错误: \(message)"
+        case .databaseError(let coreDataError):
+            return "数据库错误: \(coreDataError.errorDescription ?? "未知错误")"
+        case .configurationError(let message):
+            return "配置错误: \(message)"
         }
     }
 } 

@@ -1,5 +1,5 @@
 import Foundation
-import Logging
+import os.log
 
 /// 规则执行器
 public final class RuleEnforcer {

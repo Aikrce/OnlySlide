@@ -1,5 +1,5 @@
 import Foundation
-import Logging
+import os.log
 
 /// 文件系统监控器
 final class FileSystemMonitor {

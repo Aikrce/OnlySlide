@@ -1,6 +1,6 @@
 import Foundation
 import os.signpost
-import Logging
+import os.log
 
 public final class PerformanceMonitor {
     // MARK: - Properties

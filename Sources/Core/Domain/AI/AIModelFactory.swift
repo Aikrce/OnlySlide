@@ -6,12 +6,12 @@ public protocol AIModelFactory {
     /// - Parameters:
     ///   - model: AI模型实例
     ///   - type: 模型类型
-    func register(_ model: AIModel, for type: AIModelType)
+    func register(_ model: UnifiedAIModel, for type: AIModelType)
     
     /// 获取AI模型
     /// - Parameter type: 模型类型
     /// - Returns: AI模型实例
-    func getModel(for type: AIModelType) -> AIModel?
+    func getModel(for type: AIModelType) -> UnifiedAIModel?
     
     /// 移除AI模型
     /// - Parameter type: 模型类型
@@ -21,7 +21,7 @@ public protocol AIModelFactory {
     /// - Parameters:
     ///   - model: 新的AI模型实例
     ///   - type: 模型类型
-    func updateModel(_ model: AIModel, for type: AIModelType)
+    func updateModel(_ model: UnifiedAIModel, for type: AIModelType)
     
     /// 获取所有已注册的AI模型类型
     /// - Returns: 模型类型数组
@@ -87,16 +87,16 @@ public protocol AIModel {
 public class DefaultAIModelFactory: AIModelFactory {
     public static let shared = DefaultAIModelFactory()
     
-    private var models: [AIModelType: AIModel] = [:]
+    private var models: [AIModelType: UnifiedAIModel] = [:]
     private var configurations: [AIModelType: [String: Any]] = [:]
     
     private init() {}
     
-    public func register(_ model: AIModel, for type: AIModelType) {
+    public func register(_ model: UnifiedAIModel, for type: AIModelType) {
         models[type] = model
     }
     
-    public func getModel(for type: AIModelType) -> AIModel? {
+    public func getModel(for type: AIModelType) -> UnifiedAIModel? {
         return models[type]
     }
     
@@ -105,7 +105,7 @@ public class DefaultAIModelFactory: AIModelFactory {
         configurations.removeValue(forKey: type)
     }
     
-    public func updateModel(_ model: AIModel, for type: AIModelType) {
+    public func updateModel(_ model: UnifiedAIModel, for type: AIModelType) {
         models[type] = model
     }
     

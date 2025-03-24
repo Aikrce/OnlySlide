@@ -1,5 +1,5 @@
 import Foundation
-import Logging
+import os.log
 
 public protocol ContentProcessor {
     func process(_ content: String) async throws -> String

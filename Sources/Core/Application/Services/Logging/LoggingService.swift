@@ -1,5 +1,5 @@
 import Foundation
-import Logging
+import os.log
 
 /// 日志服务
 public final class LoggingService {

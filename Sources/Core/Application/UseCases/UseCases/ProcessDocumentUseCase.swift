@@ -1,5 +1,5 @@
 import Foundation
-import Logging
+import os.log
 
 /// 文档处理用例
 public protocol IProcessDocumentUseCase {
@@ -25,14 +25,14 @@ public protocol IProcessDocumentUseCase {
 public final class ProcessDocumentUseCaseImpl: IProcessDocumentUseCase {
     // MARK: - Properties
     private let documentRepository: IDocumentRepository
-    private let aiModelFactory: DefaultAIModelFactory
+    private let aiModelFactory: AIModelFactory
     private let contentProcessor: ContentProcessingPipeline
-    private let logger = Logger(label: "com.onlyslide.usecase.document")
+    private let logger = os.Logger(subsystem: "com.onlyslide", category: "usecase.document")
     
     // MARK: - Initialization
     public init(
         documentRepository: IDocumentRepository,
-        aiModelFactory: DefaultAIModelFactory = .shared,
+        aiModelFactory: AIModelFactory,
         contentProcessor: ContentProcessingPipeline
     ) {
         self.documentRepository = documentRepository
@@ -57,7 +57,7 @@ public final class ProcessDocumentUseCaseImpl: IProcessDocumentUseCase {
             }
             
             // 3. 处理文档内容
-            let processedContent = try await model.process(document.content)
+            let processedContent = try await model.processText(document.content ?? "")
             updatedDocument.content = processedContent
             
             // 4. 应用内容处理管道
@@ -74,7 +74,7 @@ public final class ProcessDocumentUseCaseImpl: IProcessDocumentUseCase {
             updatedDocument.status = .failed
             _ = try await documentRepository.update(updatedDocument)
             
-            logger.error("Failed to process document: \(error)")
+            logger.error("Failed to process document: \(error.localizedDescription)")
             throw error
         }
     }
@@ -84,13 +84,49 @@ public final class ProcessDocumentUseCaseImpl: IProcessDocumentUseCase {
             throw ProcessingError.aiModelNotAvailable
         }
         
-        return try await aiModel.extractQuestions(from: document.content ?? "")
+        let content = document.content ?? ""
+        do {
+            return try await aiModel.extractInsights(from: content) as? [Question] ?? []
+        } catch {
+            logger.error("Failed to extract questions: \(error.localizedDescription)")
+            throw ProcessingError.processingFailed
+        }
     }
     
     public func generatePresentation(from document: Document, questions: [Question]) async throws -> Presentation {
-        // 实现PPT生成逻辑
-        // 这里需要集成具体的PPT生成功能
-        fatalError("Not implemented")
+        guard let aiModel = aiModelFactory.getModel(named: "deepseek") else {
+            throw ProcessingError.aiModelNotAvailable
+        }
+        
+        do {
+            let content = document.content ?? ""
+            let questionTexts = questions.map { $0.text }.joined(separator: "\n")
+            
+            let prompt = """
+            基于以下内容生成演示文稿:
+            
+            内容:
+            \(content)
+            
+            问题:
+            \(questionTexts)
+            """
+            
+            let result = try await aiModel.generateText(prompt: prompt)
+            
+            // 这里需要解析生成的文本并创建演示文稿对象
+            // 简化实现，创建一个基本的演示文稿对象
+            return Presentation(
+                id: UUID(),
+                title: document.title ?? "生成的演示文稿",
+                slides: [],
+                createdAt: Date(),
+                modifiedAt: Date()
+            )
+        } catch {
+            logger.error("Failed to generate presentation: \(error.localizedDescription)")
+            throw ProcessingError.processingFailed
+        }
     }
 }
 
@@ -100,4 +136,4 @@ public enum ProcessingError: Error {
     case processingFailed
     case invalidInput
     case modelNotFound
-} 
+}

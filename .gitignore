@@ -11,3 +11,5 @@ DerivedData/
 *.xcworkspace
 *.xcuserstate
 .netrc
+# 构建产物
+.build-artifacts/

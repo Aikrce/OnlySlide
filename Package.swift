@@ -14,12 +14,11 @@ let package = Package(
         .library(name: "OnlySlideCore", targets: ["Core"]),
         .library(name: "OnlySlideUI", targets: ["App"]),
         .library(name: "OnlySlideFeatures", targets: ["Features"]),
-        .library(name: "OnlySlideCommon", targets: ["Common"])
+        .library(name: "OnlySlideCommon", targets: ["Common"]),
+        .library(name: "OnlySlideCoreData", targets: ["CoreDataModule"]),
+        .library(name: "OnlySlideLogging", targets: ["Logging"])
     ],
-    dependencies: [
-        // Dependencies
-        .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0")
-    ],
+    dependencies: [],
     targets: [
         // 主应用目标
         .executableTarget(
@@ -28,13 +27,31 @@ let package = Package(
                 "Core",
                 "App",
                 "Features",
-                "Common"
+                "Common",
+                "CoreDataModule"
             ],
             path: "Sources/OnlySlide",
-            exclude: ["Info.plist"],
+            exclude: [
+                "Tests/**/*.md",
+                "Tests/**/README.md",
+                "Tests/**/*_TESTING.md",
+                "Tests/**/*_GUIDE.md"
+            ],
             resources: [
                 .copy("OnlySlide.entitlements"),
-                .copy("Resources")
+                .copy("Info.plist"),
+                .process("Resources", exclude: ["*.md"])
+            ]
+        ),
+        
+        // 日志模块
+        .target(
+            name: "Logging",
+            dependencies: ["Common"],
+            path: "Sources/Logging",
+            swiftSettings: [
+                .define("DEBUG", .when(configuration: .debug)),
+                .define("RELEASE", .when(configuration: .release))
             ]
         ),
         
@@ -43,11 +60,26 @@ let package = Package(
             name: "Core",
             dependencies: [
                 "Common",
-                .product(name: "Logging", package: "swift-log")
+                "CoreDataModule",
+                "Logging"
             ],
             path: "Sources/Core",
+            swiftSettings: [
+                .define("DEBUG", .when(configuration: .debug)),
+                .define("RELEASE", .when(configuration: .release))
+            ]
+        ),
+        
+        // CoreData模块
+        .target(
+            name: "CoreDataModule",
+            dependencies: [
+                "Common",
+                "Logging"
+            ],
+            path: "Sources/CoreDataModule",
             resources: [
-                .process("Data/Persistence/CoreData/OnlySlide.xcdatamodeld")
+                .process("Models/OnlySlide.xcdatamodeld")
             ],
             swiftSettings: [
                 .define("DEBUG", .when(configuration: .debug)),
@@ -58,7 +90,7 @@ let package = Package(
         // UI模块
         .target(
             name: "App",
-            dependencies: ["Core", "Common"],
+            dependencies: ["Core", "Common", "CoreDataModule"],
             path: "Sources/App",
             swiftSettings: [
                 .define("DEBUG", .when(configuration: .debug))
@@ -71,7 +103,8 @@ let package = Package(
             dependencies: [
                 "Core",
                 "Common",
-                .product(name: "Logging", package: "swift-log")
+                "CoreDataModule",
+                "Logging"
             ],
             path: "Sources/Features",
             swiftSettings: [
@@ -92,18 +125,54 @@ let package = Package(
         // 测试目标
         .testTarget(
             name: "CoreTests",
-            dependencies: ["Core"],
-            path: "Tests/Core"
+            dependencies: ["Core", "CoreDataModule"],
+            path: "Tests/CoreTests",
+            swiftSettings: [
+                .define("TEST", .when(configuration: .debug))
+            ]
+        ),
+        .testTarget(
+            name: "CoreDataTests",
+            dependencies: ["CoreDataModule"],
+            path: "Tests/CoreDataTests",
+            resources: [
+                .process("TestModel.xcdatamodeld")
+            ],
+            swiftSettings: [
+                .define("TEST", .when(configuration: .debug))
+            ]
         ),
         .testTarget(
             name: "AppTests",
             dependencies: ["App"],
-            path: "Tests/App"
+            path: "Tests/AppTests",
+            swiftSettings: [
+                .define("TEST", .when(configuration: .debug))
+            ]
         ),
         .testTarget(
             name: "FeaturesTests",
             dependencies: ["Features"],
-            path: "Tests/Features"
+            path: "Tests/FeaturesTests",
+            swiftSettings: [
+                .define("TEST", .when(configuration: .debug))
+            ]
+        ),
+        .testTarget(
+            name: "CommonTests",
+            dependencies: ["Common"],
+            path: "Tests/CommonTests",
+            swiftSettings: [
+                .define("TEST", .when(configuration: .debug))
+            ]
+        ),
+        .testTarget(
+            name: "LoggingTests",
+            dependencies: ["Logging", "Common"],
+            path: "Tests/LoggingTests",
+            swiftSettings: [
+                .define("TEST", .when(configuration: .debug))
+            ]
         )
     ]
 )

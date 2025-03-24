@@ -1,13 +1,13 @@
 import Foundation
 import CoreData
-import Logging
+import os.log
 
 public class DocumentRepository: IDocumentRepository {
     private let context: NSManagedObjectContext
-    private let logger: Logger
+    private let logger: os.log
     
     public init(context: NSManagedObjectContext = CoreDataStack.shared.viewContext,
-                logger: Logger = Logger(label: "com.onlyslide.repository.document")) {
+                logger: os.log = os.log(subsystem: "com.onlyslide.repository.document", category: .pointsOfInterest)) {
         self.context = context
         self.logger = logger
     }

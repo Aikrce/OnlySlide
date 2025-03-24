@@ -1,5 +1,5 @@
 import Foundation
-import Logging
+import os.log
 
 /// 代码质量监控器
 final class CodeQualityMonitor {

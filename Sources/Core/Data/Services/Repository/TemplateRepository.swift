@@ -1,6 +1,6 @@
 import Foundation
 import CoreData
-import Logging
+import os.log
 
 public class TemplateRepository: ITemplateRepository {
     private let context: NSManagedObjectContext

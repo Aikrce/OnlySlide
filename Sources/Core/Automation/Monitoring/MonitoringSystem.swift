@@ -1,6 +1,6 @@
 import Foundation
 import Combine
-import Logging
+import os.log
 
 /// 监控系统
 public final class MonitoringSystem {

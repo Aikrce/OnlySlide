@@ -1,11 +1,11 @@
 import Foundation
-import Logging
+import os.log
 
 /// 服务定位器
 public final class ServiceLocator {
     // MARK: - Properties
     private static var instance: ServiceLocator?
-    private let logger = Logger(label: "com.onlyslide.servicelocator")
+    private let logger = os.Logger(subsystem: "com.onlyslide", category: "servicelocator")
     private var services: [String: Any] = [:]
     
     // MARK: - Initialization
@@ -27,6 +27,12 @@ public final class ServiceLocator {
         logger.info("注册服务: \(key)")
     }
     
+    // 解析服务
+    public func resolve<T>() -> T? {
+        return resolve(T.self)
+    }
+    
+    // 解析指定类型的服务
     public func resolve<T>(_ type: T.Type) -> T? {
         let key = String(describing: type)
         return services[key] as? T
@@ -78,8 +84,8 @@ public final class ServiceLocator {
         }
         
         // 缓存管理器
-        let cacheManager = DefaultCacheManager()
-        register(cacheManager, for: CacheManager.self)
+        let cacheManager = CompositeCacheManager.createDefault()
+        register(cacheManager, for: UnifiedCacheManager.self)
         
         // 文档存储库
         let documentRepository = DefaultDocumentRepository(documentStorage: documentStorage)
@@ -97,7 +103,7 @@ public final class ServiceLocator {
 
 // 简单的文件文档存储实现
 fileprivate class FileDocumentStorage: DocumentStorage {
-    private let logger = Logger(label: "com.onlyslide.filedocumentstorage")
+    private let logger = os.Logger(subsystem: "com.onlyslide", category: "filedocumentstorage")
     
     func fetchDocument(withID id: UUID) async throws -> Document? {
         logger.debug("获取文档: \(id)")
@@ -128,7 +134,7 @@ fileprivate class FileDocumentStorage: DocumentStorage {
 // 简单的文档存储库实现
 fileprivate class DefaultDocumentRepository: IDocumentRepository {
     private let documentStorage: DocumentStorage
-    private let logger = Logger(label: "com.onlyslide.documentrepository")
+    private let logger = os.Logger(subsystem: "com.onlyslide", category: "documentrepository")
     
     init(documentStorage: DocumentStorage) {
         self.documentStorage = documentStorage
@@ -157,13 +163,13 @@ fileprivate class DefaultDocumentRepository: IDocumentRepository {
 
 // 简单的AI模型工厂实现
 fileprivate class DefaultAIModelFactory: AIModelFactory {
-    private var models: [String: AIModel] = [:]
+    private var models: [String: UnifiedAIModel] = [:]
     
-    func register(model: AIModel, for name: String) {
+    func register(model: UnifiedAIModel, for name: String) {
         models[name] = model
     }
     
-    func getModel(named name: String) -> AIModel? {
+    func getModel(named name: String) -> UnifiedAIModel? {
         return models[name]
     }
 }
@@ -177,18 +183,18 @@ extension ServiceLocator {
         register(configManager, for: ConfigurationManager.self)
         
         // 缓存管理器
-        let cacheManager = try CompositeCacheManager.createDefault()
-        register(cacheManager, for: CacheManager.self)
+        let cacheManager = CompositeCacheManager.createDefault()
+        register(cacheManager, for: UnifiedCacheManager.self)
         
         // 文档存储
         let documentStorage = try RealmDocumentStorage()
-        register(documentStorage, for: DocumentStorage.self)
+        register(documentStorage, for: UnifiedDocumentStorage.self)
     }
     
     /// 注册AI服务
     func registerAIServices() throws {
         // 获取配置
-        guard let configManager: ConfigurationManager = resolve(),
+        guard let configManager = resolve(ConfigurationManager.self),
               let config = try? configManager.getConfiguration() else {
             throw ServiceError.missingDependency
         }
@@ -204,9 +210,9 @@ extension ServiceLocator {
     /// 注册文档处理服务
     func registerDocumentServices() throws {
         // 获取依赖
-        guard let documentStorage: DocumentStorage = resolve(),
-              let cacheManager: CacheManager = resolve(),
-              let configManager: ConfigurationManager = resolve() else {
+        guard let documentStorage = resolve(UnifiedDocumentStorage.self),
+              let cacheManager = resolve(UnifiedCacheManager.self),
+              let configManager = resolve(ConfigurationManager.self) else {
             throw ServiceError.missingDependency
         }
         
@@ -228,7 +234,7 @@ extension ServiceLocator {
 extension ServiceLocator {
     /// 获取服务
     func getService<T>() throws -> T {
-        guard let service: T = resolve() else {
+        guard let service = resolve(T.self) else {
             throw ServiceError.serviceNotFound
         }
         return service

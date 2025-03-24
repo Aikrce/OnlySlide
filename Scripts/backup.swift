@@ -7,7 +7,7 @@ struct Backup {
         print("开始执行完整备份...")
         
         // 创建备份管理器
-        let manager = BackupManager.shared
+        let manager = CoreBackupManager.shared
         
         do {
             // 执行完整备份

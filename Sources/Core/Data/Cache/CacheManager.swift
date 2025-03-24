@@ -1,5 +1,5 @@
 import Foundation
-import Logging
+import os.log
 
 /// 缓存管理器协议
 public protocol CacheManager {

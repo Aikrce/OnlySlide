@@ -1,5 +1,5 @@
 import Foundation
-import Logging
+import os.log
 
 // 文档存储协议
 public protocol DocumentStorage {
@@ -11,8 +11,8 @@ public protocol DocumentStorage {
 }
 
 // Realm文档存储实现
-public class RealmDocumentStorage: DocumentStorage {
-    private let logger = Logger(label: "com.onlyslide.core.realmDocumentStorage")
+public class RealmDocumentStorage: UnifiedDocumentStorage {
+    private let logger = os.Logger(subsystem: "com.onlyslide", category: "realmDocumentStorage")
     
     public init() throws {
         logger.info("初始化 RealmDocumentStorage")
