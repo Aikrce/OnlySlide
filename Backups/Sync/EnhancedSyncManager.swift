@@ -1,0 +1,465 @@
+import Foundation
+import CoreData
+import Combine
+import os
+
+// 使用统一的SyncState定义，从SyncState文件导入
+
+// MARK: - 同步状态
+/// 同步状态
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+// MARK: - 同步选项
+/// 同步选项
+public struct SyncOptions: Sendable {
+    /// 同步方向
+    public enum Direction: Sendable {
+        /// 上传
+        case upload
+        /// 下载
+        case download
+        /// 双向
+        case bidirectional
+    }
+    
+    /// 同步方向
+    public let direction: Direction
+    
+    /// 自动冲突解决策略
+    public let autoMergeStrategy: AutoMergeStrategy
+    
+    /// 是否在失败时回滚
+    public let rollbackOnFailure: Bool
+    
+    /// 创建同步选项
+    public init(
+        direction: Direction = .bidirectional,
+        autoMergeStrategy: AutoMergeStrategy = .serverWins,
+        rollbackOnFailure: Bool = true
+    ) {
+        self.direction = direction
+        self.autoMergeStrategy = autoMergeStrategy
+        self.rollbackOnFailure = rollbackOnFailure
+    }
+    
+    /// 默认选项
+    public static let `default` = SyncOptions()
+}
+
+// MARK: - 自动合并策略
+/// 自动合并冲突解决策略
+public enum AutoMergeStrategy: Sendable {
+    /// 服务器数据优先
+    case serverWins
+    /// 本地数据优先
+    case localWins
+    /// 按最近修改时间
+    case mostRecent
+    /// 合并冲突字段
+    case mergeFields
+    /// 手动解决
+    case manual
+}
+
+// MARK: - 同步协议
+/// 同步服务协议
+public protocol SyncServiceProtocol: Sendable {
+    /// 从服务器获取数据
+    func fetchDataFromServer() async throws -> [String: Any]
+    
+    /// 上传数据到服务器
+    func uploadDataToServer(_ data: [String: Any]) async throws -> Bool
+    
+    /// 解决冲突
+    func resolveConflicts(
+        local: [String: Any],
+        remote: [String: Any],
+        strategy: AutoMergeStrategy
+    ) async throws -> [String: Any]
+}
+
+/// 存储访问协议
+public protocol StoreAccessProtocol: Sendable {
+    /// 从存储中读取数据
+    func readDataFromStore() async throws -> [String: Any]
+    
+    /// 将数据写入存储
+    func writeDataToStore(_ data: [String: Any]) async throws -> Bool
+    
+    /// 检查数据是否变化
+    func hasChanges(_ newData: [String: Any], comparedTo oldData: [String: Any]) -> Bool
+}
+
+/// 同步进度报告协议
+public protocol SyncProgressReporterProtocol: Sendable {
+    /// 报告同步状态
+    func reportState(_ state: SyncState)
+    
+    /// 报告同步进度
+    func reportProgress(_ progress: Double)
+    
+    /// 获取当前状态
+    func currentState() -> SyncState
+    
+    /// 获取当前进度
+    func currentProgress() -> Double
+}
+
+// MARK: - 增强同步管理器
+/// 增强型 Core Data 同步管理器
+public struct EnhancedSyncManager: Sendable {
+    // MARK: - 依赖
+    
+    private let syncService: SyncServiceProtocol
+    private let storeAccess: StoreAccessProtocol
+    private let progressReporter: SyncProgressReporterProtocol
+    
+    // MARK: - 并发安全存储
+    
+    @ThreadSafe private var isSyncing = false
+    @ThreadSafe private var lastSyncDate: Date? = nil
+    
+    // MARK: - 发布者
+    
+    private let stateSubject = CurrentValueSubject<SyncState, Never>(.idle)
+    private let progressSubject = CurrentValueSubject<Double, Never>(0.0)
+    
+    /// 同步状态发布者
+    public var statePublisher: AnyPublisher<SyncState, Never> {
+        stateSubject.eraseToAnyPublisher()
+    }
+    
+    /// 同步进度发布者
+    public var progressPublisher: AnyPublisher<Double, Never> {
+        progressSubject.eraseToAnyPublisher()
+    }
+    
+    // MARK: - 初始化
+    
+    /// 初始化同步管理器
+    public init(
+        syncService: SyncServiceProtocol,
+        storeAccess: StoreAccessProtocol,
+        progressReporter: SyncProgressReporterProtocol
+    ) {
+        self.syncService = syncService
+        self.storeAccess = storeAccess
+        self.progressReporter = progressReporter
+    }
+    
+    /// 使用默认依赖创建同步管理器
+    public static func createDefault() -> EnhancedSyncManager {
+        // 在实际项目中，从 DependencyRegistry 解析这些依赖
+        let syncService = DefaultSyncService()
+        let storeAccess = DefaultStoreAccess()
+        let progressReporter = DefaultSyncProgressReporter()
+        
+        return EnhancedSyncManager(
+            syncService: syncService,
+            storeAccess: storeAccess,
+            progressReporter: progressReporter
+        )
+    }
+    
+    // MARK: - 公共方法
+    
+    /// 执行同步
+    public func sync(with options: SyncOptions = .default) async throws -> Bool {
+        // 确保不会重复同步
+        let alreadySyncing = $isSyncing.mutate { current -> Bool in
+            let alreadySyncing = current
+            current = true
+            return alreadySyncing
+        }
+        
+        if alreadySyncing {
+            return false
+        }
+        
+        // 使用 defer 确保同步状态始终重置
+        defer {
+            isSyncing = false
+        }
+        
+        // 更新状态
+        updateState(.preparing)
+        updateProgress(0.1)
+        
+        do {
+            // 处理同步
+            try await performSync(with: options)
+            
+            // 更新同步时间
+            lastSyncDate = Date()
+            
+            // 更新状态
+            updateState(.completed)
+            updateProgress(1.0)
+            
+            return true
+        } catch {
+            // 更新状态
+            updateState(.failed(error))
+            
+            // 如果配置了回滚
+            if options.rollbackOnFailure {
+                try? await rollback()
+            }
+            
+            throw error
+        }
+    }
+    
+    /// 获取最后同步时间
+    public func lastSyncTime() -> Date? {
+        return lastSyncDate
+    }
+    
+    /// 获取当前同步状态
+    public func currentState() -> SyncState {
+        return progressReporter.currentState()
+    }
+    
+    /// 检查是否正在同步
+    public func isCurrentlySyncing() -> Bool {
+        return isSyncing
+    }
+    
+    // MARK: - 私有方法
+    
+    /// 执行同步操作
+    private func performSync(with options: SyncOptions) async throws {
+        // 根据同步方向选择操作
+        switch options.direction {
+        case .download:
+            try await download(with: options)
+        case .upload:
+            try await upload(with: options)
+        case .bidirectional:
+            try await bidirectionalSync(with: options)
+        }
+    }
+    
+    /// 下载操作
+    private func download(with options: SyncOptions) async throws {
+        updateProgress(0.2)
+        
+        // 从服务器获取数据
+        let remoteData = try await syncService.fetchDataFromServer()
+        
+        updateProgress(0.6)
+        
+        // 写入本地存储
+        _ = try await storeAccess.writeDataToStore(remoteData)
+        
+        updateProgress(0.9)
+    }
+    
+    /// 上传操作
+    private func upload(with options: SyncOptions) async throws {
+        updateProgress(0.2)
+        
+        // 从存储读取数据
+        let localData = try await storeAccess.readDataFromStore()
+        
+        updateProgress(0.5)
+        
+        // 上传到服务器
+        _ = try await syncService.uploadDataToServer(localData)
+        
+        updateProgress(0.9)
+    }
+    
+    /// 双向同步操作
+    private func bidirectionalSync(with options: SyncOptions) async throws {
+        updateProgress(0.1)
+        
+        // 从本地和服务器分别获取数据
+        async let localDataFuture = storeAccess.readDataFromStore()
+        async let remoteDataFuture = syncService.fetchDataFromServer()
+        
+        let (localData, remoteData) = try await (localDataFuture, remoteDataFuture)
+        
+        updateProgress(0.4)
+        
+        // 检查数据是否有差异
+        if !storeAccess.hasChanges(remoteData, comparedTo: localData) {
+            // 数据完全相同，无需同步
+            updateProgress(0.9)
+            return
+        }
+        
+        updateState(.syncing)
+        updateProgress(0.5)
+        
+        // 解决冲突
+        let mergedData = try await syncService.resolveConflicts(
+            local: localData,
+            remote: remoteData,
+            strategy: options.autoMergeStrategy
+        )
+        
+        updateProgress(0.7)
+        
+        // 将合并后的数据保存到本地
+        _ = try await storeAccess.writeDataToStore(mergedData)
+        
+        updateProgress(0.8)
+        
+        // 上传合并后的数据
+        _ = try await syncService.uploadDataToServer(mergedData)
+        
+        updateProgress(0.9)
+    }
+    
+    /// 回滚操作
+    private func rollback() async throws {
+        // 实现回滚逻辑
+        // 这里可能需要从备份恢复或撤销上次写入
+    }
+    
+    /// 更新同步状态
+    private func updateState(_ state: SyncState) {
+        stateSubject.send(state)
+        progressReporter.reportState(state)
+    }
+    
+    /// 更新同步进度
+    private func updateProgress(_ progress: Double) {
+        progressSubject.send(progress)
+        progressReporter.reportProgress(progress)
+    }
+}
+
+// MARK: - 默认实现
+
+/// 默认同步服务实现
+fileprivate struct DefaultSyncService: SyncServiceProtocol {
+    func fetchDataFromServer() async throws -> [String : Any] {
+        // 实际项目中实现真实的网络请求
+        return [:]
+    }
+    
+    func uploadDataToServer(_ data: [String : Any]) async throws -> Bool {
+        // 实际项目中实现真实的网络请求
+        return true
+    }
+    
+    func resolveConflicts(
+        local: [String : Any],
+        remote: [String : Any],
+        strategy: AutoMergeStrategy
+    ) async throws -> [String : Any] {
+        // 根据不同的策略实现冲突解决
+        switch strategy {
+        case .serverWins:
+            return remote
+        case .localWins:
+            return local
+        case .mostRecent, .mergeFields, .manual:
+            // 在实际项目中实现更复杂的合并逻辑
+            return remote
+        }
+    }
+}
+
+/// 默认存储访问实现
+fileprivate struct DefaultStoreAccess: StoreAccessProtocol {
+    func readDataFromStore() async throws -> [String : Any] {
+        // 实际项目中从 Core Data 读取
+        return [:]
+    }
+    
+    func writeDataToStore(_ data: [String : Any]) async throws -> Bool {
+        // 实际项目中写入 Core Data
+        return true
+    }
+    
+    func hasChanges(_ newData: [String : Any], comparedTo oldData: [String : Any]) -> Bool {
+        // 比较数据差异
+        return true
+    }
+}
+
+/// 默认同步进度报告实现
+fileprivate class DefaultSyncProgressReporter: SyncProgressReporterProtocol {
+    @ThreadSafe private var state: SyncState = .idle
+    @ThreadSafe private var progress: Double = 0.0
+    
+    func reportState(_ state: SyncState) {
+        self.state = state
+    }
+    
+    func reportProgress(_ progress: Double) {
+        self.progress = progress
+    }
+    
+    func currentState() -> SyncState {
+        return state
+    }
+    
+    func currentProgress() -> Double {
+        return progress
+    }
+}
+
+// MARK: - 同步管理器适配器
+
+/// 同步管理器适配器，提供与原始API兼容的接口
+@MainActor
+public struct SyncManagerAdapter: Sendable {
+    /// 共享实例
+    public static let shared = SyncManagerAdapter()
+    
+    /// 增强同步管理器
+    private let enhancedManager: EnhancedSyncManager
+    
+    /// 初始化适配器
+    public init(manager: EnhancedSyncManager = EnhancedSyncManager.createDefault()) {
+        self.enhancedManager = manager
+    }
+    
+    /// 获取管理器
+    public func manager() -> EnhancedSyncManager {
+        return enhancedManager
+    }
+    
+    /// 兼容方法：执行同步
+    public func compatibleSync() async throws -> Bool {
+        return try await enhancedManager.sync()
+    }
+    
+    /// 兼容方法：获取同步状态
+    public func compatibleSyncState() -> String {
+        let state = enhancedManager.currentState()
+        
+        switch state {
+        case .idle:
+            return "idle"
+        case .preparing:
+            return "preparing"
+        case .syncing:
+            return "syncing"
+        case .completed:
+            return "completed"
+        case .failed:
+            return "failed"
+        }
+    }
+    
+    /// 兼容方法：检查是否正在同步
+    public func compatibleIsSyncing() -> Bool {
+        return enhancedManager.isCurrentlySyncing()
+    }
+}
+
+/// 全局访问函数
+@MainActor
+public func getSyncManager() -> EnhancedSyncManager {
+    return SyncManagerAdapter.shared.manager()
+} 

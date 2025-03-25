@@ -1,0 +1,473 @@
+import CoreData
+import Foundation
+import Combine
+import os
+
+// MARK: - Migration Configuration
+
+/// 迁移配置结构体
+public struct MigrationOptions: Sendable, Equatable {
+    /// 是否创建备份
+    public let shouldCreateBackup: Bool
+    
+    /// 是否在失败时从备份恢复
+    public let shouldRestoreFromBackupOnFailure: Bool
+    
+    /// 是否删除旧备份
+    public let shouldRemoveOldBackups: Bool
+    
+    /// 要保留的最大备份数量
+    public let maxBackupsToKeep: Int
+    
+    /// 迁移模式
+    public let mode: MigrationMode
+    
+    /// 初始化迁移配置
+    public init(
+        shouldCreateBackup: Bool = true,
+        shouldRestoreFromBackupOnFailure: Bool = true,
+        shouldRemoveOldBackups: Bool = true,
+        maxBackupsToKeep: Int = 5,
+        mode: MigrationMode = .automatic
+    ) {
+        self.shouldCreateBackup = shouldCreateBackup
+        self.shouldRestoreFromBackupOnFailure = shouldRestoreFromBackupOnFailure
+        self.shouldRemoveOldBackups = shouldRemoveOldBackups
+        self.maxBackupsToKeep = maxBackupsToKeep
+        self.mode = mode
+    }
+    
+    /// 默认配置
+    public static let `default` = MigrationOptions()
+}
+
+/// 迁移模式
+public enum MigrationMode: Sendable, Equatable {
+    /// 自动迁移（推断映射模型）
+    case automatic
+    
+    /// 使用自定义映射模型
+    case customMapping
+    
+    /// 逐步迁移（一次只迁移一个版本）
+    case stepByStep
+    
+    /// 使用轻量级迁移，由 Core Data 自动处理
+    case lightweight
+}
+
+// MARK: - Migration Protocols
+
+/// 迁移规划协议
+public protocol MigrationPlannerProtocol: Sendable {
+    func requiresMigration(at storeURL: URL) async throws -> Bool
+    func createMigrationPlan(for storeURL: URL, options: MigrationOptions) async throws -> MigrationPlan
+}
+
+/// 迁移执行器协议
+public protocol MigrationExecutorProtocol: Sendable {
+    func executePlan(_ plan: MigrationPlan, options: MigrationOptions, progressHandler: @escaping (Float) -> Void) async throws
+}
+
+/// 备份管理协议
+public protocol BackupManagerProtocol: Sendable {
+    func createBackup(for storeURL: URL, options: MigrationOptions) async throws -> Result<URL, Error>
+    func restoreFromLatestBackup(to storeURL: URL) async throws -> Result<Void, Error>
+    func cleanupOldBackups(for storeURL: URL, keeping: Int) async throws
+}
+
+/// 进度报告协议
+public protocol MigrationProgressReporterProtocol: AnyObject, Sendable {
+    var state: MigrationState { get }
+    var progress: MigrationProgress? { get }
+    
+    func reset()
+    func reportPreparationStarted()
+    func reportBackupStarted()
+    func reportMigrationStarted()
+    func updateProgress(_ progress: Float)
+    func reportMigrationCompleted(result: MigrationResult)
+    func reportMigrationFailed(error: Error)
+    func reportRestorationStarted()
+    func reportRestorationCompleted(success: Bool)
+}
+
+// MARK: - Enhanced Migration Manager
+
+/// 优化的 Core Data 迁移管理器
+@MainActor
+public struct EnhancedMigrationManager: Sendable {
+    // MARK: - Dependencies
+    
+    private let planner: MigrationPlannerProtocol
+    private let executor: MigrationExecutorProtocol
+    private let backupManager: BackupManagerProtocol
+    private let progressReporter: MigrationProgressReporterProtocol
+    
+    // MARK: - Publishers
+    
+    private let stateSubject = CurrentValueSubject<MigrationState, Never>(.notStarted)
+    private let progressSubject = CurrentValueSubject<MigrationProgress?, Never>(nil)
+    
+    /// 当前状态发布者
+    public var statePublisher: AnyPublisher<MigrationState, Never> {
+        stateSubject.eraseToAnyPublisher()
+    }
+    
+    /// 当前进度发布者
+    public var progressPublisher: AnyPublisher<MigrationProgress?, Never> {
+        progressSubject.eraseToAnyPublisher()
+    }
+    
+    // MARK: - Initialization
+    
+    /// 初始化迁移管理器
+    /// - Parameters:
+    ///   - planner: 迁移规划器
+    ///   - executor: 迁移执行器
+    ///   - backupManager: 备份管理器
+    ///   - progressReporter: 进度报告器
+    public init(
+        planner: MigrationPlannerProtocol,
+        executor: MigrationExecutorProtocol,
+        backupManager: BackupManagerProtocol,
+        progressReporter: MigrationProgressReporterProtocol
+    ) {
+        self.planner = planner
+        self.executor = executor
+        self.backupManager = backupManager
+        self.progressReporter = progressReporter
+        
+        // 开始监听进度报告器状态变更
+        Task { [progressReporter] in
+            while true {
+                // 更新状态和进度
+                await MainActor.run {
+                    stateSubject.send(progressReporter.state)
+                    progressSubject.send(progressReporter.progress)
+                }
+                
+                // 防止过于频繁的更新
+                try? await Task.sleep(nanoseconds: 100_000_000) // 100毫秒
+            }
+        }
+    }
+    
+    // MARK: - Factory Method
+    
+    /// 创建使用默认依赖的迁移管理器
+    /// - Returns: 配置好的迁移管理器
+    public static func createDefault() -> EnhancedMigrationManager {
+        // 使用现有的实现作为默认值
+        let planner = DefaultMigrationPlanner()
+        let executor = DefaultMigrationExecutor()
+        let backupManager = DefaultBackupManager()
+        let progressReporter = MigrationProgressReporter()
+        
+        return EnhancedMigrationManager(
+            planner: planner,
+            executor: executor,
+            backupManager: backupManager,
+            progressReporter: progressReporter
+        )
+    }
+    
+    // MARK: - Migration Methods
+    
+    /// 检查是否需要迁移
+    /// - Parameter storeURL: 存储文件URL
+    /// - Returns: 是否需要迁移
+    public func needsMigration(at storeURL: URL) async throws -> Bool {
+        return try await planner.requiresMigration(at: storeURL)
+    }
+    
+    /// 执行迁移
+    /// - Parameters:
+    ///   - storeURL: 存储文件URL
+    ///   - options: 迁移选项
+    /// - Returns: 迁移结果
+    public func migrate(
+        storeAt storeURL: URL,
+        options: MigrationOptions = .default
+    ) async throws -> MigrationResult {
+        // 重置状态
+        progressReporter.reset()
+        progressReporter.reportPreparationStarted()
+        
+        do {
+            // 检查是否需要迁移
+            guard try await planner.requiresMigration(at: storeURL) else {
+                progressReporter.reportMigrationCompleted(result: .notNeeded)
+                return .notNeeded
+            }
+            
+            // 创建迁移计划
+            let plan = try await planner.createMigrationPlan(for: storeURL, options: options)
+            
+            // 如果没有迁移步骤，说明不需要迁移
+            if plan.steps.isEmpty {
+                progressReporter.reportMigrationCompleted(result: .notNeeded)
+                return .notNeeded
+            }
+            
+            // 如果配置了备份，则创建备份
+            if options.shouldCreateBackup {
+                progressReporter.reportBackupStarted()
+                let backupResult = try await backupManager.createBackup(for: storeURL, options: options)
+                
+                if case .failure(let error) = backupResult {
+                    progressReporter.reportMigrationFailed(error: error)
+                    throw error
+                }
+            }
+            
+            // 报告迁移开始
+            progressReporter.reportMigrationStarted()
+            
+            // 执行迁移计划
+            try await executor.executePlan(plan, options: options) { progress in
+                // 更新进度
+                self.progressReporter.updateProgress(progress)
+            }
+            
+            // 清理旧备份
+            if options.shouldRemoveOldBackups {
+                try? await backupManager.cleanupOldBackups(for: storeURL, keeping: options.maxBackupsToKeep)
+            }
+            
+            // 报告迁移完成
+            progressReporter.reportMigrationCompleted(result: .success)
+            return .success
+            
+        } catch {
+            // 发生错误，进行错误恢复
+            progressReporter.reportMigrationFailed(error: error)
+            
+            // 如果配置了恢复备份，则尝试恢复
+            if options.shouldRestoreFromBackupOnFailure {
+                progressReporter.reportRestorationStarted()
+                
+                // 尝试从最新备份恢复
+                let restoreResult = try await backupManager.restoreFromLatestBackup(to: storeURL)
+                
+                progressReporter.reportRestorationCompleted(success: restoreResult.isSuccess)
+            }
+            
+            // 抛出错误
+            throw error
+        }
+    }
+    
+    /// 获取当前迁移状态
+    /// - Returns: 迁移状态
+    public func getCurrentState() -> MigrationState {
+        return progressReporter.state
+    }
+    
+    /// 获取当前迁移进度
+    /// - Returns: 迁移进度信息
+    public func getCurrentProgress() -> MigrationProgress? {
+        return progressReporter.progress
+    }
+    
+    /// 重置迁移管理器状态
+    public func reset() {
+        progressReporter.reset()
+    }
+}
+
+// MARK: - Default Implementations (Adapters)
+
+/// 默认迁移规划器
+fileprivate struct DefaultMigrationPlanner: MigrationPlannerProtocol {
+    func requiresMigration(at storeURL: URL) async throws -> Bool {
+        // 使用现有的迁移规划器实现
+        let existingPlanner = MigrationPlanner()
+        return try await existingPlanner.requiresMigration(at: storeURL)
+    }
+    
+    func createMigrationPlan(for storeURL: URL, options: MigrationOptions) async throws -> MigrationPlan {
+        // 使用现有的迁移规划器实现
+        let existingPlanner = MigrationPlanner()
+        return try await existingPlanner.createMigrationPlan(for: storeURL)
+    }
+}
+
+/// 默认迁移执行器
+fileprivate struct DefaultMigrationExecutor: MigrationExecutorProtocol {
+    func executePlan(_ plan: MigrationPlan, options: MigrationOptions, progressHandler: @escaping (Float) -> Void) async throws {
+        // 使用现有的迁移执行器实现
+        let existingExecutor = MigrationExecutor()
+        try await existingExecutor.executePlan(plan, progressHandler: progressHandler)
+    }
+}
+
+/// 默认备份管理器
+fileprivate struct DefaultBackupManager: BackupManagerProtocol {
+    func createBackup(for storeURL: URL, options: MigrationOptions) async throws -> Result<URL, Error> {
+        // 使用现有的备份管理器实现
+        let existingManager = BackupManager()
+        return try await existingManager.createBackup(for: storeURL)
+    }
+    
+    func restoreFromLatestBackup(to storeURL: URL) async throws -> Result<Void, Error> {
+        // 使用现有的备份管理器实现
+        let existingManager = BackupManager()
+        return try await existingManager.restoreFromLatestBackup(to: storeURL)
+    }
+    
+    func cleanupOldBackups(for storeURL: URL, keeping: Int) async throws {
+        // 使用现有的备份管理器实现
+        let existingManager = BackupManager()
+        try await existingManager.removeOldBackups(for: storeURL, keepLatest: keeping)
+    }
+}
+
+// MARK: - Result Extension
+
+extension Result {
+    var isSuccess: Bool {
+        switch self {
+        case .success:
+            return true
+        case .failure:
+            return false
+        }
+    }
+}
+
+// MARK: - Migration State
+
+/// 迁移状态
+public enum MigrationState {
+    /// 空闲
+    case idle
+    
+    /// 正在检查
+    case checking
+    
+    /// 正在准备
+    case preparing
+    
+    /// 正在备份
+    case backingUp
+    
+    /// 正在迁移
+    case inProgress
+    
+    /// 正在完成
+    case finishing
+    
+    /// 完成
+    case completed
+    
+    /// 失败
+    case failed(Error)
+    
+    /// 恢复中
+    case recovering
+}
+
+// MARK: - Migration Result
+
+/// 迁移结果
+public enum MigrationResult: Equatable {
+    /// 成功
+    case success
+    
+    /// 失败
+    case failure(Error)
+    
+    /// 恢复成功
+    case recoveredFromFailure
+    
+    /// 相等性比较
+    public static func == (lhs: MigrationResult, rhs: MigrationResult) -> Bool {
+        switch (lhs, rhs) {
+        case (.success, .success):
+            return true
+        case (.recoveredFromFailure, .recoveredFromFailure):
+            return true
+        case (.failure, .failure):
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+// MARK: - Migration Progress
+
+/// 迁移进度报告协议
+public protocol MigrationProgressReporterProtocol: Sendable {
+    /// 更新进度
+    func updateProgress(_ value: Double)
+    
+    /// 获取当前进度
+    func currentProgress() -> Progress
+}
+
+// MARK: - Migration Manager Adapter
+
+/// 迁移管理器适配器，提供与原始API兼容的接口
+@MainActor
+public struct MigrationManagerAdapter: Sendable {
+    /// 共享实例
+    public static let shared = MigrationManagerAdapter()
+    
+    /// 内部使用的增强迁移管理器
+    private let enhancedManager: EnhancedMigrationManager
+    
+    /// 初始化适配器
+    /// - Parameter manager: 增强迁移管理器
+    public init(manager: EnhancedMigrationManager = EnhancedMigrationManager.createDefault()) {
+        self.enhancedManager = manager
+    }
+    
+    /// 获取管理器
+    /// - Returns: 增强迁移管理器
+    public func manager() -> EnhancedMigrationManager {
+        return enhancedManager
+    }
+    
+    /// 兼容方法：检查并在需要时迁移存储
+    public func compatibleCheckAndMigrateStoreIfNeeded(at storeURL: URL) async throws -> Bool {
+        let needsMigration = try await enhancedManager.needsMigration(at: storeURL)
+        
+        if needsMigration {
+            let result = try await enhancedManager.migrate(storeAt: storeURL)
+            return result == .success || result == .recoveredFromFailure
+        }
+        
+        return true
+    }
+    
+    /// 兼容方法：执行迁移
+    public func compatiblePerformMigration(at storeURL: URL) async throws -> Bool {
+        let result = try await enhancedManager.migrate(storeAt: storeURL)
+        return result == .success || result == .recoveredFromFailure
+    }
+    
+    /// 获取迁移状态
+    public var migrationState: MigrationState {
+        var currentState: MigrationState = .idle
+        
+        // 为了避免引用类型依赖，使用一次性订阅
+        let cancellable = enhancedManager.statePublisher
+            .receive(on: RunLoop.main)
+            .sink { state in
+                currentState = state
+            }
+        
+        defer { cancellable.cancel() }
+        
+        // 返回状态
+        return currentState
+    }
+}
+
+/// 全局访问函数
+@MainActor
+public func getMigrationManager() -> EnhancedMigrationManager {
+    return MigrationManagerAdapter.shared.manager()
+} 
