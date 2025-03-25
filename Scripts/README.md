@@ -7,6 +7,9 @@
 - `Build/` - 构建相关脚本
   - `clean_xcode.sh` - 清理Xcode派生数据和项目缓存
   - `backup.sh` - 备份项目代码和工作内容
+  - `fix_build_errors.sh` - 修复Xcode构建错误
+  - `build_fixed.sh` - 使用优化选项构建项目
+  - `fix_swift_blocking.sh` - 修复Swift任务阻塞问题
   
 - `Maintenance/` - 项目维护脚本
   - `cleanup.sh` - 清理项目中的重复定义
@@ -41,6 +44,24 @@
 
 ```bash
 ./Scripts/Build/backup.sh
+```
+
+修复Xcode构建错误：
+
+```bash
+./Scripts/Build/fix_build_errors.sh
+```
+
+使用优化选项构建项目（绕过Xcode构建问题）：
+
+```bash
+./Scripts/Build/build_fixed.sh
+```
+
+修复Swift任务阻塞问题：
+
+```bash
+./Scripts/Build/fix_swift_blocking.sh
 ```
 
 ### 维护工具
