@@ -6,6 +6,7 @@
 
 - `Build/` - 构建相关脚本
   - `clean_xcode.sh` - 清理Xcode派生数据和项目缓存
+  - `backup.sh` - 备份项目代码和工作内容
   
 - `Maintenance/` - 项目维护脚本
   - `cleanup.sh` - 清理项目中的重复定义
@@ -34,6 +35,12 @@
 
 ```bash
 ./Scripts/Build/clean_xcode.sh
+```
+
+备份项目代码和工作内容：
+
+```bash
+./Scripts/Build/backup.sh
 ```
 
 ### 维护工具
