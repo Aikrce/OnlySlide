@@ -38,30 +38,74 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		5272177E2D92F000008A2890 /* Exceptions for "Resources" folder in "OnlySlide" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				.gitkeep,
+				README.md,
+			);
+			target = 52BB3F892D8C2FCC000B010D /* OnlySlide */;
+		};
 		52A7F6452D91350A00FB8C32 /* Exceptions for "Sources" folder in "OnlySlide" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Common/Components/.gitkeep,
+				Common/Components/README.md,
+				Common/Constants/.gitkeep,
+				Common/Constants/README.md,
+				Common/Extensions/.gitkeep,
+				Common/Extensions/README.md,
+				Common/Testing/.gitkeep,
+				Common/Testing/README.md,
+				Core/Application/DTOs/DTOs/.gitkeep,
+				Core/Application/DTOs/DTOs/README.md,
+				Core/Common/Logging/.gitkeep,
+				Core/Common/Logging/README.md,
 				Core/Data/Persistence/CoreData/Performance/CoreDataPerformanceMonitor.swift.bak,
-				"Core/Data/Persistence/CoreData/Performance/Performance-README.md",
 				Core/Data/Persistence/CoreData/README.md,
 				Core/Data/Persistence/CoreData/Sync/CoreDataConflictResolver.swift.bak,
 				Core/Data/Persistence/CoreData/Sync/CoreDataSyncManager.swift.bak,
-				"Core/Data/Persistence/CoreData/Sync/Sync-README.md",
 				Core/Data/Persistence/CoreData/Sync/SyncState.swift.bak,
 				Core/Data/Persistence/CoreData/Test/CoreDataTestManager.swift.bak,
-				"Core/Data/Persistence/CoreData/Test/Test-README.md",
+				Core/Domain/Models/Entities/.gitkeep,
+				Core/Domain/Models/Entities/README.md,
+				Core/Domain/Models/Enums/.gitkeep,
+				Core/Domain/Models/Enums/README.md,
+				Core/Domain/Models/Errors/.gitkeep,
+				Core/Domain/Models/Errors/README.md,
+				Core/Domain/Services/.gitkeep,
+				Core/Domain/Services/README.md,
+				CoreDataModule/Extensions/.gitkeep,
+				CoreDataModule/Extensions/README.md,
 				CoreDataModule/Migration/CustomMappingModelCreation.md,
 				CoreDataModule/Migration/README.md,
 				CoreDataModule/README.md,
-				OnlySlide/Info.plist.bak,
-				OnlySlide/Resources/Info.plist,
+				CoreDataModule/UI/MigrationProgressView.swift,
+				CoreDataModule/Utils/.gitkeep,
+				CoreDataModule/Utils/README.md,
+				Features/ContentAnalysis/.gitkeep,
+				Features/ContentAnalysis/README.md,
+				Features/DocumentProcessing/Models/.gitkeep,
+				Features/DocumentProcessing/Models/README.md,
+				Features/DocumentProcessing/ViewModels/.gitkeep,
+				Features/DocumentProcessing/ViewModels/README.md,
+				Features/DocumentProcessing/Views/.gitkeep,
+				Features/DocumentProcessing/Views/README.md,
+				Features/TemplateAnalysis/.gitkeep,
+				Features/TemplateAnalysis/README.md,
+				Services/ErrorHandling/.gitkeep,
+				Services/ErrorHandling/README.md,
 			);
 			target = 52BB3F892D8C2FCC000B010D /* OnlySlide */;
 		};
 		52A7F6462D91350A00FB8C32 /* Exceptions for "Frameworks" folder in "OnlySlide" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Custom/.gitkeep,
+				Custom/README.md,
 				README.md,
+				ThirdParty/.gitkeep,
+				ThirdParty/README.md,
 			);
 			target = 52BB3F892D8C2FCC000B010D /* OnlySlide */;
 		};
@@ -69,18 +113,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				OnlySlideUI,
-			);
-			target = 52BB3F892D8C2FCC000B010D /* OnlySlide */;
-		};
-		52A7F6482D91350A00FB8C32 /* Exceptions for "Scripts" folder in "OnlySlide" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				cleanup_core_data.sh,
-				"hooks/pre-commit",
-				move_performance_to_core_data_module.sh,
-				move_sync_to_core_data_module.sh,
-				move_test_to_core_data_module.sh,
-				update_core_data_imports.sh,
 			);
 			target = 52BB3F892D8C2FCC000B010D /* OnlySlide */;
 		};
@@ -98,20 +130,55 @@
 				archive/ARCHIVE_GUIDE.md,
 				CoreDataTests/COREDATA_TESTING.md,
 				CoreTests/CORE_TESTING.md,
+				CoreTests/Data/CoreTests/.gitkeep,
+				CoreTests/Data/CoreTests/README.md,
 				FeaturesTests/FEATURES_TESTING.md,
 				IntegrationTests/INTEGRATION_TESTING.md,
 				PerformanceTests/PERFORMANCE_TESTING.md,
 				README.md,
+				temp/CoreTests/.gitkeep,
+				temp/CoreTests/README.md,
 				UITests/UI_TESTING.md,
+				UnitTests/App/.gitkeep,
+				UnitTests/App/README.md,
+				UnitTests/Common/.gitkeep,
+				UnitTests/Common/README.md,
+				UnitTests/Core/.gitkeep,
+				UnitTests/Core/README.md,
+				UnitTests/Features/.gitkeep,
+				UnitTests/Features/README.md,
 				UnitTests/UNIT_TESTING.md,
+			);
+			target = 52BB3F892D8C2FCC000B010D /* OnlySlide */;
+		};
+		52EACED72D92F90900E7E447 /* Exceptions for "Scripts" folder in "OnlySlide" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Build/fix_readme_conflicts_v2.sh,
+				Build/fix_readme_conflicts.sh,
+				Maintenance/README.md,
+				README.md,
 			);
 			target = 52BB3F892D8C2FCC000B010D /* OnlySlide */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		529B45072D91AA2B00130D93 /* CommonTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = CommonTests;
+			sourceTree = "<group>";
+		};
+		529B450A2D91AA2B00130D93 /* Demo */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Demo;
+			sourceTree = "<group>";
+		};
 		52BB3FF22D8D32D1000B010D /* Resources */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				5272177E2D92F000008A2890 /* Exceptions for "Resources" folder in "OnlySlide" target */,
+			);
 			path = Resources;
 			sourceTree = "<group>";
 		};
@@ -158,7 +225,7 @@
 		52DF3ACA2D8FF62700DB254D /* Scripts */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				52A7F6482D91350A00FB8C32 /* Exceptions for "Scripts" folder in "OnlySlide" target */,
+				52EACED72D92F90900E7E447 /* Exceptions for "Scripts" folder in "OnlySlide" target */,
 			);
 			path = Scripts;
 			sourceTree = "<group>";
@@ -200,6 +267,8 @@
 		52BB3F812D8C2FCC000B010D = {
 			isa = PBXGroup;
 			children = (
+				529B45072D91AA2B00130D93 /* CommonTests */,
+				529B450A2D91AA2B00130D93 /* Demo */,
 				52C762442D8FFC7200158748 /* OnlySlide */,
 				52DF3AC32D8FF62700DB254D /* Frameworks */,
 				52DF3AC52D8FF62700DB254D /* LocalPackages */,
@@ -258,6 +327,8 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
+				529B45072D91AA2B00130D93 /* CommonTests */,
+				529B450A2D91AA2B00130D93 /* Demo */,
 				52BB3FF22D8D32D1000B010D /* Resources */,
 				52BB40262D8D32D1000B010D /* Tests */,
 				52C762442D8FFC7200158748 /* OnlySlide */,
