@@ -181,7 +181,7 @@ import CoreData
                 return newObject
             }
         } catch {
-            throw CoreDataError.fetchFailed(error)
+            throw CoreDataError.unknown(error)
         }
     }
     

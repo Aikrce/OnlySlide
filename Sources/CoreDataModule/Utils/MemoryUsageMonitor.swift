@@ -1,5 +1,6 @@
 import Foundation
 import os.log
+@preconcurrency import Darwin
 
 /// 内存使用监控工具
 public struct MemoryUsageMonitor {
@@ -13,6 +14,7 @@ public struct MemoryUsageMonitor {
         // 使用锁保护对 mach_task_self_ 的访问
         taskSelfLock.lock()
         defer { taskSelfLock.unlock() }
+        // 使用正确的方式访问
         return mach_task_self_
     }
     

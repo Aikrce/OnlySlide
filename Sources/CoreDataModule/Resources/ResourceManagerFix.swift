@@ -65,8 +65,9 @@ extension ModelVersion: Hashable {
 extension CoreDataResourceManager {
     /// 安全的异步预加载模型
     public func safePreloadModels() async {
-        // 预加载基本模型 URL
-        let _ = modelURL()
+        // 预加载基本模型资源
+        let urls = getAllModelURLsSync()
+        os.Logger.CoreData.info("预加载了 \(urls.count) 个模型URL")
         
         // 预加载合并对象模型
         let _ = await mergedObjectModel()
@@ -74,50 +75,69 @@ extension CoreDataResourceManager {
         // 预加载所有可用的模型版本
         let models = await allModels()
         os.Logger.CoreData.info("预加载了 \(models.count) 个模型版本")
-        
-        // 尝试预加载所有可能的迁移路径的映射模型
-        do {
-            if let versions = try await modelVersions() {
-                for i in 0..<versions.count - 1 {
-                    let sourceVersion = versions[i]
-                    let destVersion = versions[i + 1]
-                    let _ = await mappingModel(from: sourceVersion, to: destVersion)
-                }
-            }
-        } catch {
-            os.Logger.CoreData.error("预加载版本信息时出错: \(error.localizedDescription)")
-        }
-        
-        // 输出缓存统计
-        let stats = cacheStatistics()
-        os.Logger.CoreData.info("资源预加载完成。缓存命中: \(stats.hits), 未命中: \(stats.misses), 命中率: \(stats.hitRate)")
     }
 }
 
-/// 资源提供协议实现修复
-// 删除重复的协议实现
-// extension CoreDataResourceManager: ResourceProviding {
-//     /// 实现mergedObjectModel方法以符合ResourceProviding协议
-//     public func mergedObjectModel() -> NSManagedObjectModel? {
-//         // 如果启用了缓存，先检查缓存
-//         if cachingEnabled, let cachedModel = getCachedValue(from: modelCache, forKey: "merged") as? NSManagedObjectModel {
-//             return cachedModel
-//         }
-//         
-//         // 获取所有模型
-//         let models = allModels()
-//         
-//         // 创建合并模型
-//         let mergedModel = NSManagedObjectModel(byMerging: models) ?? NSManagedObjectModel()
-//         
-//         // 如果启用了缓存，保存到缓存
-//         if cachingEnabled {
-//             setCachedValue(mergedModel, in: &modelCache, forKey: "merged")
-//         }
-//         
-//         return mergedModel
-//     }
-// }
+/// 资源提供协议实现
+extension CoreDataResourceManager: ResourceProviding {
+    /// 合并的对象模型
+    public func mergedObjectModel() async -> NSManagedObjectModel? {
+        // 如果启用了缓存，先检查缓存
+        if cachingEnabled, let cachedModel = getCachedValue(from: modelCache, forKey: "merged") as? NSManagedObjectModel {
+            return cachedModel
+        }
+        
+        // 获取所有模型
+        let models = allModelsSync()
+        
+        // 创建合并模型
+        let mergedModel = NSManagedObjectModel(byMerging: models) ?? NSManagedObjectModel()
+        
+        // 如果启用了缓存，保存到缓存
+        if cachingEnabled {
+            setCachedValue(mergedModel, in: &modelCache, forKey: "merged")
+        }
+        
+        return mergedModel
+    }
+    
+    /// 所有可用的模型
+    public func allModels() async -> [NSManagedObjectModel] {
+        return allModelsSync()
+    }
+    
+    /// 同步获取所有模型
+    private func allModelsSync() -> [NSManagedObjectModel] {
+        let urls = getAllModelURLsSync()
+        return urls.compactMap { NSManagedObjectModel(contentsOf: $0) }
+    }
+    
+    /// 同步获取所有模型URL
+    private func getAllModelURLsSync() -> [URL] {
+        var urls: [URL] = []
+        
+        for bundle in searchBundles {
+            // 查找.momd目录
+            guard let momdURLs = try? bundle.urls(forResourcesWithExtension: "momd", subdirectory: nil) else {
+                continue
+            }
+            
+            for momdURL in momdURLs {
+                // 查找.mom文件
+                if let momURLs = try? bundle.urls(forResourcesWithExtension: "mom", subdirectory: momdURL.lastPathComponent) {
+                    urls.append(contentsOf: momURLs)
+                }
+            }
+        }
+        
+        return urls
+    }
+    
+    /// 搜索包
+    @MainActor public var searchBundles: [Bundle] {
+        return [Bundle.main]
+    }
+}
 
 /// 模型版本协议
 public protocol ModelVersionType: Sendable, Hashable, CaseIterable, RawRepresentable where RawValue == String {

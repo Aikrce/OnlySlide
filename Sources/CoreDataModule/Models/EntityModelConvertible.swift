@@ -1,5 +1,6 @@
 import CoreData
 import Foundation
+import os.log
 
 /// 定义实体和领域模型之间的转换
 public protocol EntityModelConvertible {
@@ -26,18 +27,18 @@ public protocol DomainModelConvertible {
 }
 
 /// 用于CoreData ID查找的协议
-public protocol Identifiable {
+public protocol CoreDataIdentifiable {
     /// ID类型
-    associatedtype IdentifierType: Equatable
+    associatedtype ID: Equatable
     
     /// 实体或模型的唯一标识符
-    var id: IdentifierType { get }
+    var id: ID { get }
 }
 
 /// 扩展NSManagedObject提供查找功能
 extension NSManagedObject {
     /// 根据ID查找实体
-    public static func find<T: NSManagedObject>(byID id: UUID, in context: NSManagedObjectContext) -> T? where T: Identifiable, T.ID == UUID {
+    public static func find<T: NSManagedObject>(byID id: UUID, in context: NSManagedObjectContext) -> T? where T: CoreDataIdentifiable, T.ID == UUID {
         let fetchRequest = NSFetchRequest<T>(entityName: String(describing: T.self))
         fetchRequest.predicate = NSPredicate(format: "id == %@", id as CVarArg)
         fetchRequest.fetchLimit = 1
@@ -46,7 +47,7 @@ extension NSManagedObject {
             let results = try context.fetch(fetchRequest)
             return results.first
         } catch {
-            Logger.error("查找实体时出错: \(error.localizedDescription)", category: .coreData)
+            os_log("查找实体时出错: %{public}@", log: OSLog(subsystem: "com.onlyslide.coredata", category: "coreData"), type: .error, error.localizedDescription)
             return nil
         }
     }

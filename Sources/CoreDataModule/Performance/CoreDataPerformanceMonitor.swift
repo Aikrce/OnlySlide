@@ -3,9 +3,10 @@ import CoreData
 import os.log
 
 /// Core Data 性能监控管理器
-final class CoreDataPerformanceMonitor {
+final class CoreDataPerformanceMonitor: @unchecked Sendable {
     // MARK: - Properties
     
+    @MainActor
     static let shared = CoreDataPerformanceMonitor()
     
     private let logger = OSLog(subsystem: "com.onlyslide.coredata", category: "Performance")
