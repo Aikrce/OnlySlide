@@ -1,7 +1,8 @@
 import Foundation
+import CoreData
 
 /// 表示模型版本的结构体
-public struct ModelVersion: Comparable {
+public struct ModelVersion: Comparable, Equatable, CustomStringConvertible {
     /// 主版本号
     public let major: Int
     /// 次版本号
@@ -11,6 +12,21 @@ public struct ModelVersion: Comparable {
     
     /// 版本标识符，如"V1_2_3"表示版本1.2.3
     public let identifier: String
+    
+    /// 源版本（用于迁移）
+    public var sourceVersion: ModelVersion {
+        return self
+    }
+    
+    /// 目标版本（用于迁移）
+    public var destinationVersion: ModelVersion {
+        return self
+    }
+    
+    /// 可读性版本描述
+    public var description: String {
+        return "\(major).\(minor).\(patch)"
+    }
     
     /// 从版本字符串创建模型版本
     /// - Parameter versionString: 版本字符串，格式为"V{major}_{minor}_{patch}"
@@ -62,6 +78,66 @@ public struct ModelVersion: Comparable {
         self.minor = version.minor
         self.patch = version.patch
         self.identifier = version.identifier
+    }
+    
+    /// 从AnyHashable类型的版本标识符集合创建模型版本
+    /// - Parameter versionIdentifiers: AnyHashable类型的版本标识符集合
+    public init?(versionIdentifiers: Set<AnyHashable>) {
+        // 检查是否为空集合
+        guard !versionIdentifiers.isEmpty else { return nil }
+        
+        // 将AnyHashable转换为String，使用更安全的方式
+        var stringIdentifiers = Set<String>()
+        for identifier in versionIdentifiers {
+            if let stringId = identifier as? String {
+                stringIdentifiers.insert(stringId)
+            }
+        }
+        
+        // 确保转换后的集合不为空
+        guard !stringIdentifiers.isEmpty else { return nil }
+        
+        // 查找以V开头的标识符
+        guard let versionString = stringIdentifiers.first(where: { $0.hasPrefix("V") }) else {
+            return nil
+        }
+        
+        // 调用主构造函数
+        guard let version = ModelVersion(versionString: versionString) else {
+            return nil
+        }
+        
+        self.major = version.major
+        self.minor = version.minor
+        self.patch = version.patch
+        self.identifier = version.identifier
+    }
+
+    /// 从URL创建模型版本
+    /// - Parameter url: 模型文件的URL
+    /// - Returns: 模型版本，如果无法从URL中提取版本信息则返回nil
+    public static func from(url: URL) -> ModelVersion? {
+        // 获取文件名
+        let fileName = url.lastPathComponent
+        
+        // 尝试从文件名中提取版本信息
+        // 例如: "Model_V1_0_0.mom" 或 "ModelV1_0_0.xcdatamodeld"
+        
+        // 查找版本标识符（以V开头，后面跟数字和下划线）
+        let pattern = "V\\d+(?:_\\d+)*"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return nil
+        }
+        
+        let fileNameString = fileName as NSString
+        let matches = regex.matches(in: fileName, options: [], range: NSRange(location: 0, length: fileNameString.length))
+        
+        guard let match = matches.first else {
+            return nil
+        }
+        
+        let versionString = fileNameString.substring(with: match.range)
+        return ModelVersion(versionString: versionString)
     }
     
     /// 创建版本序列
@@ -135,4 +211,63 @@ public struct ModelVersion: Comparable {
         
         return lhs.patch < rhs.patch
     }
-} 
+    
+    /// 比较两个版本号
+    public static func < (lhs: ModelVersion, rhs: ModelVersion) -> Bool {
+        if lhs.major != rhs.major {
+            return lhs.major < rhs.major
+        }
+        
+        if lhs.minor != rhs.minor {
+            return lhs.minor < rhs.minor
+        }
+        
+        return lhs.patch < rhs.patch
+    }
+    
+    /// 判断两个版本号是否相等
+    public static func == (lhs: ModelVersion, rhs: ModelVersion) -> Bool {
+        return lhs.major == rhs.major && lhs.minor == rhs.minor && lhs.patch == rhs.patch
+    }
+}
+
+/// 迁移进度
+public struct MigrationProgress {
+    /// 完成百分比
+    public let fraction: Double
+    
+    /// 当前步骤
+    public let currentStep: Int
+    
+    /// 总步骤数
+    public let totalSteps: Int
+    
+    /// 描述信息
+    public var description: String {
+        return "迁移进度: \(Int(fraction * 100))% (第\(currentStep)步，共\(totalSteps)步)"
+    }
+    
+    /// 创建进度报告
+    /// - Parameters:
+    ///   - current: 当前步骤
+    ///   - total: 总步骤数
+    /// - Returns: 进度报告
+    public static func progress(current: Int, total: Int) -> MigrationProgress {
+        let fraction = total > 0 ? Double(current) / Double(total) : 0.0
+        return MigrationProgress(fraction: fraction, currentStep: current, totalSteps: total)
+    }
+    
+    /// 创建开始进度报告
+    /// - Parameter total: 总步骤数
+    /// - Returns: 开始进度报告
+    public static func start(total: Int) -> MigrationProgress {
+        return MigrationProgress(fraction: 0.0, currentStep: 0, totalSteps: total)
+    }
+    
+    /// 创建完成进度报告
+    /// - Parameter total: 总步骤数
+    /// - Returns: 完成进度报告
+    public static func complete(total: Int) -> MigrationProgress {
+        return MigrationProgress(fraction: 1.0, currentStep: total, totalSteps: total)
+    }
+}

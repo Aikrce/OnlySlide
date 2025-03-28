@@ -1,5 +1,6 @@
 import CoreData
 import Foundation
+import os
 
 /// 映射模型查找器
 /// 负责发现和创建数据模型迁移所需的映射模型
@@ -9,6 +10,9 @@ public class MappingModelFinder {
     
     /// 模型版本管理器
     private let versionManager: CoreDataModelVersionManager
+    
+    /// Logger for migration operations
+    private let logger = Logger(subsystem: "com.onlyslide.coredatamodule", category: "Migration")
     
     // MARK: - Initialization
     
@@ -41,7 +45,7 @@ public class MappingModelFinder {
                 destinationModel: destinationModel
             )
         } catch {
-            print("Error inferring mapping model: \(error.localizedDescription)")
+            logger.error("Error inferring mapping model: \(error.localizedDescription)")
             return nil
         }
     }
@@ -61,7 +65,7 @@ public class MappingModelFinder {
         
         // 尝试使用系统API查找映射模型
         return NSMappingModel(
-            from: [Bundle.module],
+            from: versionManager.resourceManager.searchBundles,
             forSourceModel: sourceModel,
             destinationModel: destinationModel
         )
@@ -199,7 +203,7 @@ public class MappingModelFinder {
             propertyMapping.name = attributeName
             
             // 检查源实体是否有相同名称的属性
-            if let sourceAttribute = sourceEntity.attributesByName[attributeName] {
+            if sourceEntity.attributesByName[attributeName] != nil {
                 // 简单的一对一映射
                 propertyMapping.valueExpression = NSExpression(format: "$source.\(attributeName)")
             } else {
@@ -237,6 +241,10 @@ public class MappingModelFinder {
         case .URIAttributeType:
             return NSExpression(format: "CAST(null, 'NSURL')")
         case .transformableAttributeType, .objectIDAttributeType:
+            return NSExpression(format: "nil")
+        case .undefinedAttributeType:
+            return NSExpression(format: "nil")
+        case .compositeAttributeType:
             return NSExpression(format: "nil")
         @unknown default:
             return NSExpression(format: "nil")
@@ -288,12 +296,22 @@ public class MappingModelFinder {
         switch entityName {
         case "Document":
             return String(describing: DocumentEntityMigrationPolicy.self)
-        case "Slide":
+        case "Slide", "SlideV2":
             return String(describing: SlideEntityMigrationPolicy.self)
-        case "Element":
+        case "Element", "SlideElement":
             return String(describing: ElementEntityMigrationPolicy.self)
+        case "Resource", "Theme", "Template", "User", "Preference":
+            // 对于这些标准实体，使用基类策略
+            return String(describing: EntityMigrationPolicy.self)
+        case "SlideShow":
+            // 如果将来实现SlideShowEntityMigrationPolicy，可以在这里添加
+            return String(describing: EntityMigrationPolicy.self)
+        case let name where name.isEmpty:
+            logger.warning("Empty entity name provided to getMigrationPolicyClassName")
+            return nil
         default:
-            // 对于其他实体，使用基类策略
+            // 对于未明确处理的实体，记录警告并使用基类策略
+            logger.warning("Using default migration policy for unknown entity: \(entityName)")
             return String(describing: EntityMigrationPolicy.self)
         }
     }

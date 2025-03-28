@@ -38,6 +38,36 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		526386DC2D96D9FF00949B9B /* Exceptions for "CommonTests" folder in "OnlySlide" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				CommonTests.swift,
+			);
+			target = 52BB3F892D8C2FCC000B010D /* OnlySlide */;
+		};
+		526386DD2D96D9FF00949B9B /* Exceptions for "CommonTests" folder in "OnlySlideTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				CommonTests.swift,
+			);
+			target = 52BB3FA02D8C2FCD000B010D /* OnlySlideTests */;
+		};
+		526386DF2D96DA0A00949B9B /* Exceptions for "Tests" folder in "OnlySlideTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				CommonTests/CommonTests.swift,
+			);
+			target = 52BB3FA02D8C2FCD000B010D /* OnlySlideTests */;
+		};
+		526386E12D96DA3500949B9B /* Exceptions for "Sources" folder in "OnlySlideTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Core/Domain/Models/Document.swift,
+				Testing/XCTestSupport.swift,
+				Utility/XCTestSupport.swift,
+			);
+			target = 52BB3FA02D8C2FCD000B010D /* OnlySlideTests */;
+		};
 		5272177E2D92F000008A2890 /* Exceptions for "Resources" folder in "OnlySlide" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -67,6 +97,7 @@
 				Core/Data/Persistence/CoreData/Sync/CoreDataSyncManager.swift.bak,
 				Core/Data/Persistence/CoreData/Sync/SyncState.swift.bak,
 				Core/Data/Persistence/CoreData/Test/CoreDataTestManager.swift.bak,
+				Core/Domain/Models/Document.swift,
 				Core/Domain/Models/Entities/.gitkeep,
 				Core/Domain/Models/Entities/README.md,
 				Core/Domain/Models/Enums/.gitkeep,
@@ -95,6 +126,8 @@
 				Features/TemplateAnalysis/README.md,
 				Services/ErrorHandling/.gitkeep,
 				Services/ErrorHandling/README.md,
+				Testing/XCTestSupport.swift,
+				Utility/XCTestSupport.swift,
 			);
 			target = 52BB3F892D8C2FCC000B010D /* OnlySlide */;
 		};
@@ -128,6 +161,7 @@
 			membershipExceptions = (
 				AppTests/APP_TESTING.md,
 				archive/ARCHIVE_GUIDE.md,
+				CommonTests/CommonTests.swift,
 				CoreDataTests/COREDATA_TESTING.md,
 				CoreTests/CORE_TESTING.md,
 				CoreTests/Data/CoreTests/.gitkeep,
@@ -154,10 +188,42 @@
 		52EACED72D92F90900E7E447 /* Exceptions for "Scripts" folder in "OnlySlide" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Backup/daily_backup.sh,
+				Build/backup.sh,
+				Build/build_fixed.sh,
+				Build/clean_derived_data.sh,
+				Build/clean_xcode.sh,
+				Build/complete_fix.sh,
+				Build/comprehensive_build_fix.sh,
+				Build/comprehensive_fix_v2.sh,
+				Build/direct_conflict_fix.sh,
+				Build/fix_build_errors.sh,
 				Build/fix_readme_conflicts_v2.sh,
 				Build/fix_readme_conflicts.sh,
+				Build/fix_stringsdata_conflicts.sh,
+				Build/fix_stringsdata_specific.sh,
+				Build/fix_swift_blocking.sh,
+				Build/fix_swift_not_blocking.sh,
+				Build/onlyslide_project_fixer.sh,
+				Build/prepare_ios_release.sh,
+				Build/rebuild.sh,
+				Maintenance/backup_and_cleanup.sh,
+				Maintenance/check_naming.sh,
+				Maintenance/cleanup.sh,
+				Maintenance/fix_empty_folders.sh,
+				Maintenance/fix_imports.sh,
+				Maintenance/optimize_imports.sh,
+				Maintenance/organize_root_directory.sh,
+				Maintenance/pre_release_check.sh,
 				Maintenance/README.md,
+				Maintenance/restore_backup.sh,
+				Migration/cleanup_core_data.sh,
+				Migration/move_performance_to_core_data_module.sh,
+				Migration/move_sync_to_core_data_module.sh,
+				Migration/move_test_to_core_data_module.sh,
+				Migration/update_core_data_imports.sh,
 				README.md,
+				Release/prepare_ios_release.sh,
 			);
 			target = 52BB3F892D8C2FCC000B010D /* OnlySlide */;
 		};
@@ -166,6 +232,10 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		529B45072D91AA2B00130D93 /* CommonTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				526386DC2D96D9FF00949B9B /* Exceptions for "CommonTests" folder in "OnlySlide" target */,
+				526386DD2D96D9FF00949B9B /* Exceptions for "CommonTests" folder in "OnlySlideTests" target */,
+			);
 			path = CommonTests;
 			sourceTree = "<group>";
 		};
@@ -186,6 +256,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				52E3225D2D913AF300EA6F7E /* Exceptions for "Tests" folder in "OnlySlide" target */,
+				526386DF2D96DA0A00949B9B /* Exceptions for "Tests" folder in "OnlySlideTests" target */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -202,6 +273,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				52A7F6452D91350A00FB8C32 /* Exceptions for "Sources" folder in "OnlySlide" target */,
+				526386E12D96DA3500949B9B /* Exceptions for "Sources" folder in "OnlySlideTests" target */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -560,6 +632,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				BUILD_SETTING_FORCE_SEQUENTIAL_SWIFT = YES;
 				CODE_SIGN_ENTITLEMENTS = OnlySlide/OnlySlide.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -584,6 +657,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
 				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = QianYanNi.OnlySlide;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
@@ -601,6 +675,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				BUILD_SETTING_FORCE_SEQUENTIAL_SWIFT = YES;
 				CODE_SIGN_ENTITLEMENTS = OnlySlide/OnlySlide.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -703,6 +778,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				BUILD_SETTING_FORCE_SEQUENTIAL_SWIFT = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";

@@ -1,0 +1,219 @@
+import Foundation
+import CoreDataModule
+
+/// 迁移状态
+public enum MigrationState: Equatable, Sendable {
+    /// 未开始
+    case notStarted
+    /// 准备中
+    case preparing
+    /// 进行中
+    case inProgress(progress: MigrationProgress)
+    /// 备份中
+    case backingUp
+    /// 恢复中
+    case restoring
+    /// 已完成
+    case completed(result: MigrationResult)
+    /// 失败
+    case failed(error: MigrationError)
+    
+    /// 是否已完成（无论成功或失败）
+    public var isFinished: Bool {
+        switch self {
+        case .completed, .failed:
+            return true
+        default:
+            return false
+        }
+    }
+    
+    /// 是否成功完成
+    public var isCompleted: Bool {
+        if case .completed = self {
+            return true
+        }
+        return false
+    }
+    
+    /// 是否失败
+    public var isFailed: Bool {
+        if case .failed = self {
+            return true
+        }
+        return false
+    }
+    
+    /// 是否正在进行中
+    public var isInProgress: Bool {
+        switch self {
+        case .preparing, .inProgress, .backingUp, .restoring:
+            return true
+        default:
+            return false
+        }
+    }
+    
+    /// 获取当前进度（如果有）
+    public var progress: MigrationProgress? {
+        if case .inProgress(let progress) = self {
+            return progress
+        }
+        return nil
+    }
+    
+    /// 获取错误（如果有）
+    public var error: MigrationError? {
+        if case .failed(let error) = self {
+            return error
+        }
+        return nil
+    }
+    
+    /// 获取结果（如果有）
+    public var result: MigrationResult? {
+        if case .completed(let result) = self {
+            return result
+        }
+        return nil
+    }
+}
+
+/// 迁移错误类型
+public enum MigrationError: Error, Equatable, Sendable {
+    /// 规划失败
+    case planningFailed(description: String)
+    /// 备份失败
+    case backupFailed(description: String)
+    /// 步骤执行失败
+    case stepExecutionFailed(step: MigrationStep, description: String)
+    /// 恢复失败
+    case restorationFailed(description: String)
+    /// 不兼容的模型
+    case incompatibleModels(sourceVersion: ModelVersion, destinationVersion: ModelVersion)
+    /// 无法找到模型
+    case modelNotFound(description: String)
+    /// 无法创建映射模型
+    case mappingModelCreationFailed(description: String)
+    /// 文件系统错误
+    case fileSystemError(description: String)
+    /// 其他错误
+    case other(description: String)
+    
+    public static func == (lhs: MigrationError, rhs: MigrationError) -> Bool {
+        switch (lhs, rhs) {
+        case (.planningFailed(let lhsDesc), .planningFailed(let rhsDesc)):
+            return lhsDesc == rhsDesc
+        case (.backupFailed(let lhsDesc), .backupFailed(let rhsDesc)):
+            return lhsDesc == rhsDesc
+        case (.stepExecutionFailed(let lhsStep, let lhsDesc), .stepExecutionFailed(let rhsStep, let rhsDesc)):
+            return lhsStep == rhsStep && lhsDesc == rhsDesc
+        case (.restorationFailed(let lhsDesc), .restorationFailed(let rhsDesc)):
+            return lhsDesc == rhsDesc
+        case (.incompatibleModels(let lhsSource, let lhsDest), .incompatibleModels(let rhsSource, let rhsDest)):
+            return lhsSource == rhsSource && lhsDest == rhsDest
+        case (.modelNotFound(let lhsDesc), .modelNotFound(let rhsDesc)):
+            return lhsDesc == rhsDesc
+        case (.mappingModelCreationFailed(let lhsDesc), .mappingModelCreationFailed(let rhsDesc)):
+            return lhsDesc == rhsDesc
+        case (.fileSystemError(let lhsDesc), .fileSystemError(let rhsDesc)):
+            return lhsDesc == rhsDesc
+        case (.other(let lhsDesc), .other(let rhsDesc)):
+            return lhsDesc == rhsDesc
+        default:
+            return false
+        }
+    }
+    
+    /// 从普通错误转换为迁移错误
+    /// - Parameter error: 原始错误
+    /// - Returns: 迁移错误
+    public static func from(_ error: Error) -> MigrationError {
+        if let migrationError = error as? MigrationError {
+            return migrationError
+        }
+        
+        if let coreDataError = error as? CoreDataError {
+            switch coreDataError {
+            case .modelNotFound(let message):
+                return .modelNotFound(description: message)
+            case .migrationFailed(let message):
+                return .other(description: message)
+            default:
+                return .other(description: coreDataError.localizedDescription)
+            }
+        }
+        
+        return .other(description: error.localizedDescription)
+    }
+    
+    /// 本地化描述
+    public var localizedDescription: String {
+        switch self {
+        case .planningFailed(let description):
+            return "迁移计划创建失败: \(description)"
+        case .backupFailed(let description):
+            return "备份创建失败: \(description)"
+        case .stepExecutionFailed(let step, let description):
+            return "迁移步骤执行失败 (从 \(step.sourceVersion.description) 到 \(step.destinationVersion.description)): \(description)"
+        case .restorationFailed(let description):
+            return "从备份恢复失败: \(description)"
+        case .incompatibleModels(let sourceVersion, let destinationVersion):
+            return "不兼容的模型版本: \(sourceVersion.description) 无法迁移到 \(destinationVersion.description)"
+        case .modelNotFound(let description):
+            return "找不到模型: \(description)"
+        case .mappingModelCreationFailed(let description):
+            return "无法创建映射模型: \(description)"
+        case .fileSystemError(let description):
+            return "文件系统错误: \(description)"
+        case .other(let description):
+            return "迁移错误: \(description)"
+        }
+    }
+}
+
+/// 迁移结果
+
+/// 迁移计划
+public struct MigrationPlan: Equatable, Sendable {
+    /// 源版本
+    public let sourceVersion: ModelVersion
+    /// 目标版本
+    public let destinationVersion: ModelVersion
+    /// 迁移步骤
+    public let steps: [MigrationStep]
+    /// 存储 URL
+    public let storeURL: URL
+    
+    /// 创建迁移计划
+    /// - Parameters:
+    ///   - sourceVersion: 源版本
+    ///   - destinationVersion: 目标版本
+    ///   - steps: 迁移步骤
+    ///   - storeURL: 存储 URL
+    public init(sourceVersion: ModelVersion, destinationVersion: ModelVersion, steps: [MigrationStep], storeURL: URL) {
+        self.sourceVersion = sourceVersion
+        self.destinationVersion = destinationVersion
+        self.steps = steps
+        self.storeURL = storeURL
+    }
+    
+    /// 计划是否为空
+    public var isEmpty: Bool {
+        return steps.isEmpty
+    }
+    
+    /// 步骤数量
+    public var stepCount: Int {
+        return steps.count
+    }
+    
+    /// 是否为单步迁移
+    public var isSingleStep: Bool {
+        return steps.count == 1
+    }
+}
+
+/// 迁移步骤
+
+/// 迁移进度

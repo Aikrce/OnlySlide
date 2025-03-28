@@ -1,0 +1,4 @@
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};

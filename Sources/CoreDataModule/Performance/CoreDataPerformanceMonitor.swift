@@ -1,5 +1,5 @@
-import Core
-import CoreDataModuleData
+import Foundation
+import CoreData
 import os.log
 
 /// Core Data 性能监控管理器

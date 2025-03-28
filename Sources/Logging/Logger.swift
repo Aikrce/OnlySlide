@@ -38,9 +38,14 @@ public extension Logging {
     }
 }
 
-public final class OSLogger: Logging {
-    public static let shared = OSLogger()
+// 添加Sendable一致性
+@available(macOS 10.15, iOS 13.0, *)
+public final class OSLogger: Logging, @unchecked Sendable {
+    // 使用actor isolation让shared属性并发安全
+    @MainActor public static let shared = OSLogger()
+    
     private let dateFormatter: DateFormatter
+    private let lock = NSLock() // 添加锁以保护并发访问
     
     private init() {
         dateFormatter = DateFormatter()
@@ -48,7 +53,11 @@ public final class OSLogger: Logging {
     }
     
     public func log(_ message: String, level: LogLevel, file: String, function: String, line: Int) {
+        // 使用锁保护dateFormatter的并发访问
+        lock.lock()
         let timestamp = dateFormatter.string(from: Date())
+        lock.unlock()
+        
         let filename = (file as NSString).lastPathComponent
         let logMessage = "\(timestamp) [\(level.prefix)] [\(filename):\(line)] \(function): \(message)"
         
@@ -61,4 +70,6 @@ public final class OSLogger: Logging {
 }
 
 // 便利访问
-public let log = OSLogger.shared 
+// 添加MainActor注解使其并发安全
+@available(macOS 10.15, iOS 13.0, *)
+@MainActor public let log = OSLogger.shared 

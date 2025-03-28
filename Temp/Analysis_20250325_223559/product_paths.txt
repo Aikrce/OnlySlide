@@ -1,0 +1,37 @@
+		528E3ED82D90FD74007FC791 /* CoreDataTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CoreDataTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		52BB3F8A2D8C2FCC000B010D /* OnlySlide.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OnlySlide.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		52BB3FA12D8C2FCD000B010D /* OnlySlideTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OnlySlideTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		52BB3FAB2D8C2FCD000B010D /* OnlySlideUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OnlySlideUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		5272177E2D92F000008A2890 /* Exceptions for "Resources" folder in "OnlySlide" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+--
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OnlySlide.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/OnlySlide";
+			};
+			name = Debug;
+		};
+		528E3EE02D90FD74007FC791 /* Release */ = {
+			isa = XCBuildConfiguration;
+--
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OnlySlide.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/OnlySlide";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		52BB3FB52D8C2FCD000B010D /* Debug */ = {
+--
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OnlySlide.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/OnlySlide";
+				XROS_DEPLOYMENT_TARGET = 2.2;
+			};
+			name = Debug;
+		};
+		52BB3FBB2D8C2FCD000B010D /* Release */ = {
+--
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OnlySlide.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/OnlySlide";
+				XROS_DEPLOYMENT_TARGET = 2.2;
+			};
+			name = Release;
+		};
+		52BB3FBD2D8C2FCD000B010D /* Debug */ = {

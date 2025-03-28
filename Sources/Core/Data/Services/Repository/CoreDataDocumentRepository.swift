@@ -2,15 +2,16 @@ import CoreData
 import Foundation
 import os.log
 import Combine
+import CoreDataModule
 
 protocol IDocumentPersistence {
-    func fetchDocuments(for user: User) -> [Document]
-    func fetchRecentDocuments(limit: Int) -> [Document]
-    func fetchDocuments(withType type: String) -> [Document]
-    func searchDocuments(keyword: String) -> [Document]
+    func fetchDocuments(for user: CDUser) -> [CDDocument]
+    func fetchRecentDocuments(limit: Int) -> [CDDocument]
+    func fetchDocuments(withType type: String) -> [CDDocument]
+    func searchDocuments(keyword: String) -> [CDDocument]
 }
 
-final class CoreDataDocumentRepository: CoreDataRepository<Document> {
+final class CoreDataDocumentRepository: CoreDataRepository<CDDocument> {
     private let logger = Logger(label: "com.onlyslide.repository.coredatadocument")
     
     // MARK: - Properties
@@ -41,9 +42,9 @@ final class CoreDataDocumentRepository: CoreDataRepository<Document> {
         self.documentCache = documentCache
         
         // 设置通知观察者
-        setupNotificationObservers()
-        
         super.init(context: CoreDataStack.shared.viewContext)
+        
+        setupNotificationObservers()
     }
     
     deinit {
@@ -52,136 +53,166 @@ final class CoreDataDocumentRepository: CoreDataRepository<Document> {
     
     // MARK: - Fetch Operations
     
-    func fetchDocuments(for user: User) -> [Document] {
-        let predicate = NSPredicate(format: "owner == %@ OR ANY collaborators == %@", user, user)
-        return fetch(predicate: predicate)
-    }
-    
-    func fetchRecentDocuments(limit: Int) -> [Document] {
-        let request = Document.fetchRequest()
-        request.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
-        request.fetchLimit = limit
-        
+    func fetchDocuments(for user: CDUser) -> [CDDocument] {
         do {
-            return try CoreDataStack.shared.viewContext.fetch(request) as? [Document] ?? []
+            let predicate = NSPredicate(format: "owner == %@ OR ANY collaborators == %@", user, user)
+            return try fetch(predicate: predicate)
         } catch {
-            print("获取最近文档失败: \(error)")
+            logger.error("Failed to fetch documents for user: \(error)")
             return []
         }
     }
     
-    func fetchDocuments(withType type: String) -> [Document] {
-        let predicate = NSPredicate(format: "type == %@", type)
-        return fetch(predicate: predicate)
+    func fetchRecentDocuments(limit: Int) -> [CDDocument] {
+        do {
+            let request = CDDocument.fetchRequest()
+            request.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
+            request.fetchLimit = limit
+            
+            return try context.fetch(request) as? [CDDocument] ?? []
+        } catch {
+            logger.error("Failed to fetch recent documents: \(error)")
+            return []
+        }
     }
     
-    func searchDocuments(keyword: String) -> [Document] {
-        let predicate = NSPredicate(format: "title CONTAINS[cd] %@ OR ANY tags CONTAINS[cd] %@", keyword, keyword)
-        return fetch(predicate: predicate)
+    func fetchDocuments(withType type: String) -> [CDDocument] {
+        do {
+            let predicate = NSPredicate(format: "type == %@", type)
+            return try fetch(predicate: predicate)
+        } catch {
+            logger.error("Failed to fetch documents with type: \(error)")
+            return []
+        }
+    }
+    
+    func searchDocuments(keyword: String) -> [CDDocument] {
+        do {
+            let predicate = NSPredicate(format: "title CONTAINS[cd] %@ OR ANY tags CONTAINS[cd] %@", keyword, keyword)
+            return try fetch(predicate: predicate)
+        } catch {
+            logger.error("Failed to search documents: \(error)")
+            return []
+        }
     }
     
     // MARK: - IDocumentRepository Implementation
     
-    func create(_ document: Document) async throws {
-        do {
-            let entity = DocumentEntity(context: context)
-            entity.documentModel = document
-            
-            try context.save()
-            logger.info("Created document with ID: \(document.id)")
-        } catch {
-            logger.error("Failed to create document: \(error)")
-            throw CoreDataError.saveFailed(error)
+    func create(_ document: Document) async throws -> CDDocument {
+        return try await performBackgroundOperation { context in
+            do {
+                let entity = CDDocument(context: context)
+                entity.update(from: document)
+                
+                try context.save()
+                self.documentCache.cacheDocument(entity.toDomain())
+                
+                return entity
+            } catch {
+                throw CoreDataError.saveFailed(error)
+            }
         }
     }
     
-    func get(by id: UUID) async throws -> Document {
-        let request = DocumentEntity.fetchRequest()
-        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
-        request.fetchLimit = 1
+    func get(by id: UUID) async throws -> CDDocument {
+        // 尝试从缓存获取
+        if let cachedDocument = documentCache.getDocument(id: id) {
+            // 转换为CDDocument
+            if let entity = CDDocument.find(byID: id, in: context) {
+                return entity
+            }
+        }
         
-        do {
-            guard let entity = try context.fetch(request).first else {
-                logger.warning("Document not found with ID: \(id)")
-                throw CoreDataError.notFound
+        return try await performBackgroundOperation { context in
+            let predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            
+            let request = CDDocument.fetchRequest()
+            request.predicate = predicate
+            request.fetchLimit = 1
+            
+            guard let document = try context.fetch(request).first else {
+                throw CoreDataError.notFound("Document with ID \(id)")
             }
-            return entity.documentModel
-        } catch {
-            logger.error("Failed to fetch document: \(error)")
-            throw CoreDataError.fetchFailed(error)
+            
+            return document
         }
     }
     
-    func update(_ document: Document) async throws -> Document {
-        do {
-            let fetchRequest: NSFetchRequest<DocumentEntity> = DocumentEntity.fetchRequest()
-            fetchRequest.predicate = NSPredicate(format: "id == %@", document.id as CVarArg)
-            fetchRequest.fetchLimit = 1
+    func update(_ document: CDDocument) async throws -> CDDocument {
+        return try await performBackgroundOperation { context in
+            // 获取对象ID
+            let objectID = document.objectID
             
-            guard let entity = try context.fetch(fetchRequest).first else {
-                logger.warning("Document not found for update with ID: \(document.id)")
-                throw CoreDataError.notFound
+            // 在后台上下文中查找对象
+            guard let backgroundEntity = context.object(with: objectID) as? CDDocument else {
+                throw CoreDataError.notFound("Document with ID \(document.id)")
             }
             
-            entity.documentModel = document
+            // 更新实体属性
+            backgroundEntity.title = document.title
+            backgroundEntity.content = document.content
+            backgroundEntity.type = document.type
+            backgroundEntity.tags = document.tags
+            backgroundEntity.metadata = document.metadata
+            backgroundEntity.updatedAt = Date()
+            
+            // 保存上下文
             try context.save()
-            logger.info("Updated document with ID: \(document.id)")
-            return entity.documentModel
-        } catch {
-            logger.error("Failed to update document: \(error)")
-            throw CoreDataError.saveFailed(error)
+            
+            // 更新缓存
+            self.documentCache.cacheDocument(backgroundEntity.toDomain())
+            
+            return backgroundEntity
         }
     }
     
     func delete(by id: UUID) async throws {
-        do {
-            let fetchRequest: NSFetchRequest<DocumentEntity> = DocumentEntity.fetchRequest()
-            fetchRequest.predicate = NSPredicate(format: "id == %@", id as CVarArg)
-            fetchRequest.fetchLimit = 1
+        try await performBackgroundOperation { context in
+            // 查找文档
+            let request = CDDocument.fetchRequest()
+            request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            request.fetchLimit = 1
             
-            guard let entity = try context.fetch(fetchRequest).first else {
-                logger.warning("Document not found for deletion with ID: \(id)")
-                throw CoreDataError.notFound
+            guard let document = try context.fetch(request).first else {
+                throw CoreDataError.notFound("Document with ID \(id)")
             }
             
-            context.delete(entity)
+            // 删除文档
+            context.delete(document)
+            
+            // 保存上下文
             try context.save()
-            logger.info("Deleted document with ID: \(id)")
-        } catch {
-            logger.error("Failed to delete document: \(error)")
-            throw CoreDataError.deleteFailed(error)
+            
+            // 移除缓存
+            self.documentCache.invalidateDocument(id: id)
         }
     }
     
-    func getAll() async throws -> [Document] {
-        let request = DocumentEntity.fetchRequest()
-        
-        do {
-            let entities = try context.fetch(request)
-            let documents = entities.map { $0.documentModel }
-            logger.info("Fetched \(documents.count) documents")
+    func getAll() async throws -> [CDDocument] {
+        return try await performBackgroundOperation { context in
+            let request = CDDocument.fetchRequest()
+            request.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
+            
+            let documents = try context.fetch(request)
+            
+            // 更新缓存
+            self.documentCache.cacheDocuments(documents.map { $0.toDomain() })
+            
             return documents
-        } catch {
-            logger.error("Failed to fetch documents: \(error)")
-            throw CoreDataError.fetchFailed(error)
         }
     }
     
-    func search(query: String) async throws -> [Document] {
-        let fetchRequest: NSFetchRequest<DocumentEntity> = DocumentEntity.fetchRequest()
-        fetchRequest.predicate = NSPredicate(
-            format: "title CONTAINS[cd] %@ OR content CONTAINS[cd] %@",
-            query, query
-        )
-        
-        do {
-            let entities = try context.fetch(fetchRequest)
-            let documents = entities.map { $0.documentModel }
-            logger.info("Found \(documents.count) documents matching query: \(query)")
-            return documents
-        } catch {
-            logger.error("Failed to search documents: \(error)")
-            throw CoreDataError.fetchFailed(error)
+    func search(query: String) async throws -> [CDDocument] {
+        return try await performBackgroundOperation { context in
+            let predicate = NSPredicate(
+                format: "title CONTAINS[cd] %@ OR content CONTAINS[cd] %@",
+                query, query
+            )
+            
+            let request = CDDocument.fetchRequest()
+            request.predicate = predicate
+            
+            return try context.fetch(request)
         }
     }
     
@@ -193,91 +224,222 @@ final class CoreDataDocumentRepository: CoreDataRepository<Document> {
     ///   - newTitle: 新文档标题
     ///   - newOwner: 新文档所有者
     /// - Returns: 复制的新文档
-    func duplicate(_ document: Document, withTitle newTitle: String, owner newOwner: User) -> Document {
-        let newDocument = create()
-        
-        // 复制基本属性
-        newDocument.title = newTitle
-        newDocument.type = document.type
-        newDocument.content = document.content
-        newDocument.metadata = document.metadata
-        newDocument.tags = document.tags
-        newDocument.template = document.template
-        newDocument.owner = newOwner
-        newDocument.createdAt = Date()
-        newDocument.updatedAt = Date()
-        
-        // 复制幻灯片
-        if let slides = document.slides {
-            for slide in Array(slides) {
-                let newSlide = Slide(context: CoreDataStack.shared.viewContext)
-                newSlide.title = slide.title
-                newSlide.content = slide.content
-                newSlide.index = slide.index
-                newSlide.document = newDocument
-                
-                // 复制元素
-                if let elements = slide.elements {
-                    for element in Array(elements) {
-                        let newElement = Element(context: CoreDataStack.shared.viewContext)
-                        newElement.content = element.content
-                        newElement.position = element.position
-                        newElement.dimensions = element.dimensions
-                        newElement.style = element.style
-                        newElement.slide = newSlide
+    func duplicate(_ document: CDDocument, withTitle newTitle: String, owner newOwner: CDUser) throws -> CDDocument {
+        return try performBackgroundOperation { context in
+            // 获取原文档的管理对象ID
+            let documentID = document.objectID
+            let ownerID = newOwner.objectID
+            
+            // 在后台上下文中获取对象
+            guard let originalDocument = context.object(with: documentID) as? CDDocument,
+                  let owner = context.object(with: ownerID) as? CDUser else {
+                throw CoreDataError.notFound("Original document or owner not found")
+            }
+            
+            // 创建新文档
+            let newDocument = CDDocument(context: context)
+            
+            // 复制基本属性
+            newDocument.title = newTitle
+            newDocument.type = originalDocument.type
+            newDocument.content = originalDocument.content
+            newDocument.metadata = originalDocument.metadata
+            newDocument.tags = originalDocument.tags
+            newDocument.template = originalDocument.template
+            newDocument.owner = owner
+            newDocument.createdAt = Date()
+            newDocument.updatedAt = Date()
+            
+            // 复制幻灯片
+            if let slides = originalDocument.slides {
+                for slide in Array(slides) {
+                    let slideID = slide.objectID
+                    guard let originalSlide = context.object(with: slideID) as? CDSlide else {
+                        continue
+                    }
+                    
+                    let newSlide = CDSlide(context: context)
+                    newSlide.title = originalSlide.title
+                    newSlide.content = originalSlide.content
+                    newSlide.index = originalSlide.index
+                    newSlide.document = newDocument
+                    
+                    // 复制元素
+                    if let elements = originalSlide.elements {
+                        for element in Array(elements) {
+                            let elementID = element.objectID
+                            guard let originalElement = context.object(with: elementID) as? CDElement else {
+                                continue
+                            }
+                            
+                            let newElement = CDElement(context: context)
+                            newElement.content = originalElement.content
+                            newElement.position = originalElement.position
+                            newElement.dimensions = originalElement.dimensions
+                            newElement.style = originalElement.style
+                            newElement.slide = newSlide
+                        }
                     }
                 }
             }
-        }
-        
-        CoreDataStack.shared.saveViewContext()
-        return newDocument
+            
+            // 保存上下文
+            try context.save()
+            
+            // 更新缓存
+            self.documentCache.cacheDocument(newDocument.toDomain())
+            
+            return newDocument
+        } as! CDDocument
     }
     
     /// 归档文档
     /// - Parameter document: 要归档的文档
-    func archive(_ document: Document) {
-        document.processingStatus = 2 // 假设 2 表示已归档状态
-        update(document)
+    func archive(_ document: CDDocument) throws {
+        try performBackgroundOperation { context in
+            // 获取文档管理对象ID
+            let documentID = document.objectID
+            
+            // 在后台上下文中获取对象
+            guard let documentToArchive = context.object(with: documentID) as? CDDocument else {
+                throw CoreDataError.notFound("Document not found")
+            }
+            
+            // 设置归档状态
+            documentToArchive.processingStatus = 2 // 假设 2 表示已归档状态
+            
+            // 保存上下文
+            try context.save()
+            
+            // 更新缓存
+            self.documentCache.cacheDocument(documentToArchive.toDomain())
+        }
     }
     
     /// 恢复归档的文档
     /// - Parameter document: 要恢复的文档
-    func unarchive(_ document: Document) {
-        document.processingStatus = 0 // 假设 0 表示正常状态
-        update(document)
+    func unarchive(_ document: CDDocument) throws {
+        try performBackgroundOperation { context in
+            // 获取文档管理对象ID
+            let documentID = document.objectID
+            
+            // 在后台上下文中获取对象
+            guard let documentToUnarchive = context.object(with: documentID) as? CDDocument else {
+                throw CoreDataError.notFound("Document not found")
+            }
+            
+            // 设置正常状态
+            documentToUnarchive.processingStatus = 0 // 假设 0 表示正常状态
+            
+            // 保存上下文
+            try context.save()
+            
+            // 更新缓存
+            self.documentCache.cacheDocument(documentToUnarchive.toDomain())
+        }
     }
     
     /// 添加协作者
     /// - Parameters:
     ///   - document: 目标文档
     ///   - collaborator: 要添加的协作者
-    func addCollaborator(_ collaborator: User, to document: Document) {
-        document.addToCollaborators(collaborator)
-        update(document)
+    func addCollaborator(_ collaborator: CDUser, to document: CDDocument) throws {
+        try performBackgroundOperation { context in
+            // 获取对象ID
+            let documentID = document.objectID
+            let collaboratorID = collaborator.objectID
+            
+            // 在后台上下文中获取对象
+            guard let documentToUpdate = context.object(with: documentID) as? CDDocument,
+                  let collaboratorToAdd = context.object(with: collaboratorID) as? CDUser else {
+                throw CoreDataError.notFound("Document or collaborator not found")
+            }
+            
+            // 添加协作者
+            documentToUpdate.addToCollaborators(collaboratorToAdd)
+            
+            // 保存上下文
+            try context.save()
+            
+            // 更新缓存
+            self.documentCache.cacheDocument(documentToUpdate.toDomain())
+        }
     }
     
     /// 移除协作者
     /// - Parameters:
     ///   - document: 目标文档
     ///   - collaborator: 要移除的协作者
-    func removeCollaborator(_ collaborator: User, from document: Document) {
-        document.removeFromCollaborators(collaborator)
-        update(document)
+    func removeCollaborator(_ collaborator: CDUser, from document: CDDocument) throws {
+        try performBackgroundOperation { context in
+            // 获取对象ID
+            let documentID = document.objectID
+            let collaboratorID = collaborator.objectID
+            
+            // 在后台上下文中获取对象
+            guard let documentToUpdate = context.object(with: documentID) as? CDDocument,
+                  let collaboratorToRemove = context.object(with: collaboratorID) as? CDUser else {
+                throw CoreDataError.notFound("Document or collaborator not found")
+            }
+            
+            // 移除协作者
+            documentToUpdate.removeFromCollaborators(collaboratorToRemove)
+            
+            // 保存上下文
+            try context.save()
+            
+            // 更新缓存
+            self.documentCache.cacheDocument(documentToUpdate.toDomain())
+        }
     }
     
     // MARK: - Private Methods
-    private func fetchDocument(by id: UUID) throws -> Document? {
-        let fetchRequest: NSFetchRequest<Document> = Document.fetchRequest()
-        fetchRequest.predicate = NSPredicate(format: "id == %@", id as CVarArg)
-        fetchRequest.fetchLimit = 1
+    
+    /// 在后台上下文中执行操作
+    /// - Parameter operation: 要执行的操作
+    /// - Returns: 操作结果
+    private func performBackgroundOperation<T>(_ operation: @escaping (NSManagedObjectContext) throws -> T) throws -> T {
+        let backgroundContext = coreDataManager.newBackgroundContext()
         
-        return try context.fetch(fetchRequest).first
+        var result: T?
+        var operationError: Error?
+        
+        let semaphore = DispatchSemaphore(value: 0)
+        
+        backgroundContext.perform {
+            do {
+                result = try operation(backgroundContext)
+            } catch {
+                operationError = error
+            }
+            
+            semaphore.signal()
+        }
+        
+        semaphore.wait()
+        
+        if let error = operationError {
+            throw error
+        }
+        
+        return result!
     }
     
-    private func save() throws {
-        if context.hasChanges {
-            try context.save()
+    /// 异步执行后台操作
+    /// - Parameter operation: 要执行的操作
+    /// - Returns: 操作结果
+    private func performBackgroundOperation<T>(_ operation: @escaping (NSManagedObjectContext) throws -> T) async throws -> T {
+        return try await withCheckedThrowingContinuation { continuation in
+            let backgroundContext = coreDataManager.newBackgroundContext()
+            
+            backgroundContext.perform {
+                do {
+                    let result = try operation(backgroundContext)
+                    continuation.resume(returning: result)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
         }
     }
     
@@ -312,7 +474,7 @@ final class CoreDataDocumentRepository: CoreDataRepository<Document> {
         // 处理删除的文档
         if let deletedObjects = notification.userInfo?[NSDeletedObjectsKey] as? Set<NSManagedObject> {
             for object in deletedObjects {
-                if object.entity.name == "Document",
+                if object.entity.name == "CDDocument",
                    let idValue = object.value(forKey: "id") as? UUID {
                     DispatchQueue.main.async {
                         self.documentChangeSubject.send(.deleted(idValue))
@@ -326,114 +488,33 @@ final class CoreDataDocumentRepository: CoreDataRepository<Document> {
         }
     }
     
-    private func handleChangedObjects(_ objects: Set<NSManagedObject>, changeType: (Document) -> DocumentChangeEvent) {
+    private func handleChangedObjects(_ objects: Set<NSManagedObject>, changeType: (CDDocument) -> DocumentChangeEvent) {
         for object in objects {
-            guard object.entity.name == "Document" else { continue }
+            guard object.entity.name == "CDDocument" else { continue }
             
             // 在主上下文中获取对象
             let mainContext = coreDataManager.mainContext
             let objectID = object.objectID
             
             mainContext.perform {
-                guard let mainObject = mainContext.object(with: objectID) as? NSManagedObject,
-                      let document = self.convertToDocument(mainObject),
+                guard let mainObject = mainContext.object(with: objectID) as? CDDocument,
                       let documentId = mainObject.value(forKey: "id") as? UUID else { return }
                 
                 DispatchQueue.main.async {
-                    self.documentChangeSubject.send(changeType(document))
+                    self.documentChangeSubject.send(changeType(mainObject))
                     
                     if let subject = self.documentObservers[documentId] {
-                        subject.send(changeType(document))
+                        subject.send(changeType(mainObject))
                     }
                 }
             }
         }
     }
-    
-    private func updateManagedObject(_ object: NSManagedObject, with document: Document) throws {
-        // 设置基本属性
-        object.setValue(document.id, forKey: "id")
-        object.setValue(document.title, forKey: "title")
-        object.setValue(document.content, forKey: "content")
-        object.setValue(document.createdAt, forKey: "createdAt")
-        object.setValue(document.updatedAt, forKey: "updatedAt")
-        object.setValue(document.metadata, forKey: "metadata")
-        object.setValue(document.status.rawValue, forKey: "status")
-        object.setValue(document.sourceURL?.absoluteString, forKey: "sourceURL")
-        object.setValue(document.type.rawValue, forKey: "type")
-        
-        // 处理复杂属性（如标签、用户、幻灯片等）可能需要额外的逻辑
-        // 这里仅作示例，实际实现需要根据数据模型调整
-    }
-    
-    private func convertToDocument(_ object: NSManagedObject) -> Document? {
-        guard let id = object.value(forKey: "id") as? UUID,
-              let title = object.value(forKey: "title") as? String,
-              let content = object.value(forKey: "content") as? String,
-              let createdAt = object.value(forKey: "createdAt") as? Date,
-              let updatedAt = object.value(forKey: "updatedAt") as? Date,
-              let statusRaw = object.value(forKey: "status") as? String,
-              let typeRaw = object.value(forKey: "type") as? String,
-              let status = DocumentStatus(rawValue: statusRaw),
-              let type = DocumentType(rawValue: typeRaw) else {
-            return nil
-        }
-        
-        let metadata = object.value(forKey: "metadata") as? String
-        
-        var sourceURL: URL? = nil
-        if let sourceURLString = object.value(forKey: "sourceURL") as? String {
-            sourceURL = URL(string: sourceURLString)
-        }
-        
-        // 获取标签、用户、幻灯片等关系也需要特殊处理
-        // 这里仅作示例，实际实现需要根据数据模型调整
-        
-        return Document(
-            id: id,
-            title: title,
-            content: content,
-            createdAt: createdAt,
-            updatedAt: updatedAt,
-            metadata: metadata,
-            status: status,
-            sourceURL: sourceURL,
-            type: type,
-            tags: [],
-            user: nil,
-            slides: []
-        )
-    }
-    
-    private func convertDocumentToDictionary(_ document: Document) -> [String: Any] {
-        var result: [String: Any] = [
-            "id": document.id.uuidString,
-            "title": document.title,
-            "content": document.content,
-            "createdAt": document.createdAt,
-            "updatedAt": document.updatedAt,
-            "status": document.status.rawValue,
-            "type": document.type.rawValue
-        ]
-        
-        if let metadata = document.metadata {
-            result["metadata"] = metadata
-        }
-        
-        if let sourceURL = document.sourceURL {
-            result["sourceURL"] = sourceURL.absoluteString
-        }
-        
-        // 处理标签、用户、幻灯片等复杂属性的字典转换
-        // 这里仅作示例，实际实现需要根据数据模型调整
-        
-        return result
-    }
 }
 
 // MARK: - IDocumentRepository Implementation
 extension CoreDataDocumentRepository: IDocumentRepository {
-    func getAllDocuments() async throws -> [Document] {
+    func getAllDocuments() async throws -> [CDDocument] {
         let request = DocumentEntity.fetchRequest()
         request.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
         
@@ -452,7 +533,7 @@ extension CoreDataDocumentRepository: IDocumentRepository {
         }
     }
     
-    func getDocument(id: UUID) async throws -> Document? {
+    func getDocument(id: UUID) async throws -> CDDocument? {
         // 尝试从缓存获取
         if let cachedDocument = documentCache.getDocument(id: id) {
             logger.info("Retrieved document from cache: \(id)")
@@ -482,7 +563,7 @@ extension CoreDataDocumentRepository: IDocumentRepository {
         }
     }
     
-    func createDocument(_ document: Document) async throws -> Document {
+    func createDocument(_ document: CDDocument) async throws -> CDDocument {
         do {
             let entity = DocumentEntity(context: context)
             entity.documentModel = document
@@ -504,7 +585,7 @@ extension CoreDataDocumentRepository: IDocumentRepository {
         }
     }
     
-    func updateDocument(_ document: Document) async throws -> Document {
+    func updateDocument(_ document: CDDocument) async throws -> CDDocument {
         do {
             let request = DocumentEntity.fetchRequest()
             request.predicate = NSPredicate(format: "id == %@", document.id as CVarArg)
@@ -561,12 +642,12 @@ extension CoreDataDocumentRepository: IDocumentRepository {
         }
     }
     
-    func searchDocuments(query: DocumentSearchQuery) async throws -> [Document] {
+    func searchDocuments(query: DocumentSearchQuery) async throws -> [CDDocument] {
         // 如果查询仅包含标签，尝试从缓存获取
         if let tags = query.text?.components(separatedBy: " ").filter({ $0.hasPrefix("#") }).map({ String($0.dropFirst()) }),
            !tags.isEmpty && query.types == nil && query.dateRange == nil {
             
-            var cachedResults: [Document] = []
+            var cachedResults: [CDDocument] = []
             var allTagIds = Set<UUID>()
             var firstTag = true
             
@@ -643,10 +724,10 @@ extension CoreDataDocumentRepository: IDocumentRepository {
         }
     }
     
-    func getDocumentsByTags(_ tags: [String]) async throws -> [Document] {
+    func getDocumentsByTags(_ tags: [String]) async throws -> [CDDocument] {
         // 尝试从缓存获取
         if !tags.isEmpty {
-            var cachedResults: [Document] = []
+            var cachedResults: [CDDocument] = []
             var allTagIds = Set<UUID>()
             var firstTag = true
             
@@ -691,7 +772,7 @@ extension CoreDataDocumentRepository: IDocumentRepository {
         }
     }
     
-    func syncDocuments() async throws -> [Document] {
+    func syncDocuments() async throws -> [CDDocument] {
         do {
             // 开始同步
             syncManager.syncState = .syncing
@@ -726,7 +807,7 @@ extension CoreDataDocumentRepository: IDocumentRepository {
         }
     }
     
-    func resolveConflict(document: Document, resolution: ConflictResolution) async throws -> Document {
+    func resolveConflict(document: CDDocument, resolution: ConflictResolution) async throws -> CDDocument {
         do {
             let strategy: CoreDataConflictResolver.ConflictResolutionStrategy
             
@@ -757,7 +838,7 @@ extension CoreDataDocumentRepository: IDocumentRepository {
             try context.save()
             logger.info("Resolved conflict for document: \(document.id)")
             
-            return resolvedDocument as! Document
+            return resolvedDocument as! CDDocument
         } catch {
             logger.error("Failed to resolve conflict: \(error)")
             throw error
@@ -789,14 +870,14 @@ extension CoreDataDocumentRepository: IDocumentRepository {
     
     // MARK: - 批量操作
     
-    func createDocuments(_ documents: [Document]) async throws -> [Document] {
+    func createDocuments(_ documents: [CDDocument]) async throws -> [CDDocument] {
         do {
             // 创建后台上下文以提高性能
             let backgroundContext = coreDataManager.newBackgroundContext()
             
-            return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[Document], Error>) in
+            return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[CDDocument], Error>) in
                 backgroundContext.perform {
-                    var createdDocuments: [Document] = []
+                    var createdDocuments: [CDDocument] = []
                     
                     do {
                         // 批量创建实体
@@ -833,14 +914,14 @@ extension CoreDataDocumentRepository: IDocumentRepository {
         }
     }
     
-    func updateDocuments(_ documents: [Document]) async throws -> [Document] {
+    func updateDocuments(_ documents: [CDDocument]) async throws -> [CDDocument] {
         do {
             // 创建后台上下文以提高性能
             let backgroundContext = coreDataManager.newBackgroundContext()
             
-            return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[Document], Error>) in
+            return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[CDDocument], Error>) in
                 backgroundContext.perform {
-                    var updatedDocuments: [Document] = []
+                    var updatedDocuments: [CDDocument] = []
                     
                     do {
                         // 获取所有文档ID

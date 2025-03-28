@@ -1,0 +1,122 @@
+# OnlySlide 备份索引 (20250325)
+
+## 1. 备份文件列表
+
+- `Docs/ArchitectureDesign.md`
+- `Docs/BackupHistory.md`
+- `Docs/BugfixIntegrationGuide.md`
+- `Docs/BuildIssuesSolution.md`
+- `Docs/Installation.md`
+- `Docs/Modules/ArchitectureOptimizationGuide.md`
+- `Docs/TestCoverageReport.md`
+- `Docs/UsageGuide.md`
+- `Docs/iOS_Release_Guide.md`
+- `MigrationGuide.md`
+- `OnlySlide_Backup_20250325_202050_Docs_Scripts.tar.gz`
+- `OnlySlide_Backup_20250325_202050_Full.zip`
+- `OnlySlide_Backup_20250325_202050_Manifest.md`
+- `OnlySlide_Backup_20250325_202050_Project.tar.gz`
+- `OnlySlide_Backup_20250325_202050_Report.md`
+- `OnlySlide_Backup_20250325_202050_Resources.tar.gz`
+- `OnlySlide_Backup_20250325_202050_Sources.tar.gz`
+- `Package.swift.bak`
+- `Resources/Assets.xcassets/AppIcon.appiconset/Contents.json`
+- `Resources/Assets.xcassets/AppIcon.appiconset/README.md`
+- `Resources/LaunchScreen.storyboard`
+- `Resources/README.md`
+- `Scripts/Build/backup.sh`
+- `Scripts/Build/build_fixed.sh`
+- `Scripts/Build/clean_xcode.sh`
+- `Scripts/Build/fix_build_errors.sh`
+- `Scripts/Build/fix_swift_blocking.sh`
+- `Scripts/Build/prepare_ios_release.sh`
+- `Scripts/Hooks/pre-commit`
+- `Scripts/Maintenance/README.md`
+- `Scripts/Maintenance/backup_and_cleanup.sh`
+- `Scripts/Maintenance/check_naming.sh`
+- `Scripts/Maintenance/cleanup.sh`
+- `Scripts/Maintenance/fix_empty_folders.sh`
+- `Scripts/Maintenance/fix_imports.sh`
+- `Scripts/Maintenance/optimize_imports.sh`
+- `Scripts/Maintenance/pre_release_check.sh`
+- `Scripts/Maintenance/restore_backup.sh`
+- `Scripts/README.md`
+- `Sources/App/MigrationDemoApp.swift`
+- `Sources/App/UI/CoreDataUIAdapter.swift`
+- `Sources/App/UI/Views/ErrorAlertView.swift`
+- `Sources/App/UI/Views/MainMigrationCoordinator.swift`
+- `Sources/App/UI/Views/MigrationConfirmationView.swift`
+- `Sources/App/UI/Views/MigrationProgressView.swift`
+- `Sources/Common/Components/README.md`
+- `Sources/Common/Constants/README.md`
+- `Sources/Common/Extensions/README.md`
+- `Sources/Common/Testing/README.md`
+- `Sources/Core/Application/DTOs/DTOs/README.md`
+- `Sources/Core/Common/Logging/README.md`
+- `Sources/Core/Domain/Models/Entities/README.md`
+- `Sources/Core/Domain/Models/Enums/README.md`
+- `Sources/Core/Domain/Models/Errors/README.md`
+- `Sources/Core/Domain/Models/ValueObjects/DocumentMetadata.swift`
+- `Sources/Core/Domain/Services/README.md`
+- `Sources/CoreDataModule/AppStartup/MigrationStartupHandler.swift`
+- `Sources/CoreDataModule/Concurrency/ConcurrencySafety.swift`
+- `Sources/CoreDataModule/Error/CoreDataError.swift`
+- `Sources/CoreDataModule/Error/CoreDataErrorManager.swift`
+- `Sources/CoreDataModule/Error/CoreDataRecoveryStrategies.swift`
+- `Sources/CoreDataModule/Error/EnhancedErrorHandling.swift`
+- `Sources/CoreDataModule/Extensions/README.md`
+- `Sources/CoreDataModule/Manager/CoreDataManager+Migration.swift`
+- `Sources/CoreDataModule/Manager/CoreDataManager.swift`
+- `Sources/CoreDataModule/Manager/CoreDataStack.swift`
+- `Sources/CoreDataModule/Manager/DependencyProvider.swift`
+- `Sources/CoreDataModule/Migration/CoreDataMigrationManager.swift`
+- `Sources/CoreDataModule/Migration/CoreDataModelVersionManager.swift`
+- `Sources/CoreDataModule/Migration/CustomMappingModels/SlideToSlideV2MappingModel.swift`
+- `Sources/CoreDataModule/Migration/EnhancedMigrationManager.swift`
+- `Sources/CoreDataModule/Migration/EnhancedMigrationManager.swift.bak2`
+- `Sources/CoreDataModule/Migration/EnhancedModelVersionManager.swift`
+- `Sources/CoreDataModule/Migration/EntityMigrationPolicy.swift`
+- `Sources/CoreDataModule/Migration/MappingModelFinder.swift`
+- `Sources/CoreDataModule/Migration/MigrationDomainTypes.swift`
+- `Sources/CoreDataModule/Migration/MigrationResult.swift`
+- `Sources/CoreDataModule/Migration/ModelVersion.swift`
+- `Sources/CoreDataModule/Migration/ModelVersionDefinition.swift`
+- `Sources/CoreDataModule/Migration/Models/MigrationState.swift`
+- `Sources/CoreDataModule/Migration/Models/MigrationState.swift.backup`
+- `Sources/CoreDataModule/Models/CoreDataModel+Extensions.swift`
+- `Sources/CoreDataModule/Resources/CoreDataResourceManager.swift`
+- `Sources/CoreDataModule/Resources/ResourceManagerFix.swift`
+- `Sources/CoreDataModule/Sync/CoreDataConflictResolver.swift`
+- `Sources/CoreDataModule/Sync/CoreDataSyncManager.swift`
+- `Sources/CoreDataModule/Sync/EnhancedSyncManager.swift`
+- `Sources/CoreDataModule/Sync/EnhancedSyncManager.swift.bak`
+- `Sources/CoreDataModule/Sync/EnhancedSyncManagerImproved.swift`
+- `Sources/CoreDataModule/Sync/SyncState.swift`
+- `Sources/CoreDataModule/UI/MigrationProgressView.swift`
+- `Sources/CoreDataModule/Utils/README.md`
+- `Sources/Documentation/ArchitectureDiagram.md`
+- `Sources/Examples/ArchitectureExample.swift`
+- `Sources/Examples/NewArchitectureDemo.swift`
+- `Sources/Features/ContentAnalysis/README.md`
+- `Sources/Features/DocumentProcessing/Models/README.md`
+- `Sources/Features/DocumentProcessing/ViewModels/README.md`
+- `Sources/Features/DocumentProcessing/Views/README.md`
+- `Sources/Features/TemplateAnalysis/README.md`
+- `Sources/Services/ErrorHandling/README.md`
+- `XCTestSupport.swift`
+- `rebuild.sh`
+- `swift_blocking_solution.md`
+
+## 2. 备份摘要
+
+- 备份日期: 2025-03-25 21:02:23
+- 备份文件数: 92
+- 整理文件数: 5
+
+## 3. 整理规则
+
+- Swift文件移动到 `Sources/Utility`
+- Markdown文件移动到 `Docs`
+- 配置文件移动到 `Organized/Configs`
+- 文档文件移动到 `Organized/Documentation`
+- 其他文件移动到 `Organized/Temp`

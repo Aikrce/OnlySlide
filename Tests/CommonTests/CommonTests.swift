@@ -1,3 +1,4 @@
+#if canImport(XCTest)
 import XCTest
 @testable import Common
 
@@ -14,4 +15,16 @@ final class CommonTests: XCTestCase {
         // 这里添加测试用例
         XCTAssert(true, "基础测试通过")
     }
-} 
+}
+#else
+import Common
+import Testing
+
+// 将类名从CommonTests改为CommonTestsHelper以避免冲突
+final class CommonTestsHelper {
+    func run() {
+        // 使用自定义断言
+        TestSupport.assert(true, "基础测试通过")
+    }
+}
+#endif 

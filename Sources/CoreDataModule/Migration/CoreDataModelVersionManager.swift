@@ -1,34 +1,32 @@
-import CoreData
-import Foundation
+@preconcurrency import CoreData
+@preconcurrency import Foundation
 
 /// Core Data 模型版本管理器
-public final class CoreDataModelVersionManager {
+public final class CoreDataModelVersionManager: @unchecked Sendable {
     // MARK: - Properties
     
-    public static let shared = CoreDataModelVersionManager()
+    @MainActor public static let shared = CoreDataModelVersionManager()
     private let modelName = "OnlySlide"
+    
+    /// 资源管理器
+    internal let resourceManager: CoreDataResourceManager
+    
+    // MARK: - Initialization
+    
+    /// 初始化模型版本管理器
+    /// - Parameter resourceManager: 资源管理器
+    public init(resourceManager: CoreDataResourceManager = CoreDataResourceManager.shared) {
+        self.resourceManager = resourceManager
+    }
     
     /// 当前模型版本
     private var currentModel: NSManagedObjectModel? {
-        return NSManagedObjectModel.mergedModel(from: [Bundle.main])
+        return resourceManager.mergedObjectModel()
     }
     
     /// 所有可用的模型版本
     private var availableModels: [NSManagedObjectModel] {
-        guard let modelURL = Bundle.main.url(forResource: modelName, withExtension: "momd") else {
-            return []
-        }
-        
-        let modelVersions = try? FileManager.default.contentsOfDirectory(
-            at: modelURL,
-            includingPropertiesForKeys: nil,
-            options: .skipsHiddenFiles
-        )
-        
-        return modelVersions?.compactMap { url in
-            guard url.pathExtension == "mom" else { return nil }
-            return NSManagedObjectModel(contentsOf: url)
-        } ?? []
+        return resourceManager.allModels()
     }
     
     /// 获取所有可用的模型版本
@@ -158,14 +156,15 @@ public final class CoreDataModelVersionManager {
         }
         
         // 尝试推断映射模型
-        guard let inferredMapping = try? NSMappingModel.inferredMappingModel(
-            forSourceModel: sourceModel,
-            destinationModel: destinationModel
-        ) else {
-            throw CoreDataError.migrationFailed("无法创建数据迁移映射")
+        do {
+            let inferredMapping = try NSMappingModel.inferredMappingModel(
+                forSourceModel: sourceModel,
+                destinationModel: destinationModel
+            )
+            return inferredMapping
+        } catch {
+            throw CoreDataError.migrationFailed("无法创建数据迁移映射: \(error.localizedDescription)")
         }
-        
-        return inferredMapping
     }
     
     /// 查找下一个模型版本
@@ -208,30 +207,71 @@ public final class CoreDataModelVersionManager {
         from sourceModel: NSManagedObjectModel,
         to destinationModel: NSManagedObjectModel
     ) -> NSMappingModel? {
-        // 从包含映射模型的bundle数组中查找
-        let bundles = [Bundle.main]
+        // 使用资源管理器的搜索Bundles
+        let bundles = resourceManager.searchBundles
         
         // 获取源模型和目标模型的版本
         guard let sourceVersion = ModelVersion(versionIdentifiers: sourceModel.versionIdentifiers),
               let destinationVersion = ModelVersion(versionIdentifiers: destinationModel.versionIdentifiers) else {
+            logger.warning("无法确定迁移模型版本，无法使用自定义映射")
             return nil
         }
         
-        // 尝试使用自定义名称查找映射模型
-        let mappingName = "Mapping_\(sourceVersion.identifier)_to_\(destinationVersion.identifier)"
+        // 记录正在查找的映射模型
+        logger.debug("查找自定义映射模型: 从 \(sourceVersion.identifier) 到 \(destinationVersion.identifier)")
         
+        // 构建各种可能的映射名称格式
+        let mappingNames = [
+            "Mapping_\(sourceVersion.identifier)_to_\(destinationVersion.identifier)",
+            "\(sourceVersion.identifier)_to_\(destinationVersion.identifier)",
+            "\(sourceVersion.identifier)To\(destinationVersion.identifier)",
+            "\(sourceVersion.identifier)-\(destinationVersion.identifier)"
+        ]
+        
+        // 查找各种可能的映射文件扩展名
+        let extensions = ["cdm", "xcmappingmodel"]
+        
+        // 尝试所有组合
         for bundle in bundles {
-            if let mappingPath = bundle.path(forResource: mappingName, ofType: "cdm"),
-               let mapping = NSMappingModel(contentsOf: URL(fileURLWithPath: mappingPath)) {
-                return mapping
+            for name in mappingNames {
+                for ext in extensions {
+                    if let mappingPath = bundle.path(forResource: name, ofType: ext),
+                       let mapping = NSMappingModel(contentsOf: URL(fileURLWithPath: mappingPath)) {
+                        logger.info("找到自定义映射模型: \(mappingPath)")
+                        return mapping
+                    }
+                }
             }
         }
         
-        // 尝试使用标准API查找映射模型
-        return try? NSMappingModel(
-            from: bundles,
-            forSourceModel: sourceModel,
-            destinationModel: destinationModel
-        )
+        // 如果没有找到特定命名的映射模型，尝试使用标准API
+        do {
+            let mapping = try NSMappingModel(
+                from: bundles,
+                forSourceModel: sourceModel,
+                destinationModel: destinationModel
+            )
+            logger.info("使用标准API找到自定义映射模型")
+            return mapping
+        } catch {
+            logger.debug("未找到自定义映射模型，将使用推断的映射模型: \(error.localizedDescription)")
+            
+            // 如果找不到自定义映射，尝试使用自定义映射模型查找器
+            do {
+                let finder = MappingModelFinder()
+                if let mapping = try finder.findMappingModel(
+                    from: sourceModel,
+                    to: destinationModel,
+                    in: bundles
+                ) {
+                    logger.info("使用自定义查找器找到映射模型")
+                    return mapping
+                }
+            } catch {
+                logger.warning("自定义映射模型查找器失败: \(error.localizedDescription)")
+            }
+            
+            return nil
+        }
     }
 } 

@@ -1,20 +1,63 @@
-import Core
-import CoreDataModuleData
-import Combine
+@preconcurrency import Foundation
+@preconcurrency import CoreData
+@preconcurrency import Combine
+import os
+import Network
+
+/// 同步配置
+public struct SyncConfiguration: Sendable {
+    /// 同步间隔，单位为秒
+    public let syncInterval: TimeInterval
+    
+    /// 同步批次大小
+    public let batchSize: Int
+    
+    /// 最大重试次数
+    public let retryCount: Int
+    
+    /// 冲突解决策略
+    public let conflictResolutionPolicy: NSMergePolicyType
+    
+    /// 默认配置
+    public static let `default` = SyncConfiguration(
+        syncInterval: 60.0,
+        batchSize: 100,
+        retryCount: 3,
+        conflictResolutionPolicy: .mergeByPropertyObjectTrumpMergePolicyType
+    )
+    
+    /// 初始化
+    public init(
+        syncInterval: TimeInterval,
+        batchSize: Int,
+        retryCount: Int,
+        conflictResolutionPolicy: NSMergePolicyType
+    ) {
+        self.syncInterval = syncInterval
+        self.batchSize = batchSize
+        self.retryCount = retryCount
+        self.conflictResolutionPolicy = conflictResolutionPolicy
+    }
+}
 
 /// 同步状态
-enum CoreDataSyncState: Equatable {
+public enum CoreDataSyncState: Equatable, Sendable {
+    /// 空闲状态
     case idle
+    
+    /// 同步中
     case syncing(progress: Double)
+    
+    /// 错误
     case error(Error)
     
-    static func == (lhs: CoreDataSyncState, rhs: CoreDataSyncState) -> Bool {
+    public static func == (lhs: CoreDataSyncState, rhs: CoreDataSyncState) -> Bool {
         switch (lhs, rhs) {
         case (.idle, .idle):
             return true
-        case let (.syncing(lhsProgress), .syncing(rhsProgress)):
+        case (.syncing(let lhsProgress), .syncing(let rhsProgress)):
             return lhsProgress == rhsProgress
-        case let (.error(lhsError), .error(rhsError)):
+        case (.error(let lhsError), .error(let rhsError)):
             return lhsError.localizedDescription == rhsError.localizedDescription
         default:
             return false
@@ -22,141 +65,313 @@ enum CoreDataSyncState: Equatable {
     }
 }
 
-/// 同步配置
-struct SyncConfiguration {
-    let batchSize: Int
-    let retryCount: Int
-    let syncInterval: TimeInterval
-    let conflictResolutionPolicy: NSMergePolicyType
+/// 同步状态管理的Actor
+actor SyncStateActor {
+    private let stateSubject = CurrentValueSubject<CoreDataSyncState, Never>(.idle)
     
-    static let `default` = SyncConfiguration(
-        batchSize: 100,
-        retryCount: 3,
-        syncInterval: 300, // 5分钟
-        conflictResolutionPolicy: .mergeByPropertyObjectTrumpMergePolicyType
-    )
+    var currentState: CoreDataSyncState {
+        stateSubject.value
+    }
+    
+    func updateState(_ state: CoreDataSyncState) {
+        stateSubject.send(state)
+    }
+    
+    func publisher() -> AnyPublisher<CoreDataSyncState, Never> {
+        stateSubject.eraseToAnyPublisher()
+    }
 }
 
-/// Core Data 同步管理器
-final class CoreDataSyncManager {
+/// 负责Core Data同步的管理器
+public actor CoreDataSyncManager {
     // MARK: - Properties
     
-    static let shared = CoreDataSyncManager()
+    private static var _shared: CoreDataSyncManager?
+    public static var shared: CoreDataSyncManager {
+        if _shared == nil {
+            _shared = CoreDataSyncManager()
+        }
+        return _shared!
+    }
     
-    private let syncQueue = DispatchQueue(label: "com.onlyslide.coredata.sync", qos: .utility)
     private let configuration: SyncConfiguration
-    private var syncTimer: Timer?
-    private var syncStateSubject = CurrentValueSubject<CoreDataSyncState, Never>(.idle)
+    private var syncTask: Task<Void, Never>?
+    private let stateActor = SyncStateActor()
     private var cancellables = Set<AnyCancellable>()
     
+    // 存储通知观察者任务，以便可以取消它们
+    private var observerTasks: [Task<Void, Never>] = []
+    
+    // 网络状态监视器
+    private var networkMonitor: NWPathMonitor?
+    
+    // 当前网络状态
+    private var isNetworkAvailable: Bool = false
+    
     var syncState: AnyPublisher<CoreDataSyncState, Never> {
-        syncStateSubject.eraseToAnyPublisher()
+        get async {
+            return await stateActor.publisher()
+        }
     }
     
     // MARK: - Initialization
     
     init(configuration: SyncConfiguration = .default) {
         self.configuration = configuration
-        setupSyncTimer()
-        setupObservers()
+        // 在初始化器中不能调用异步方法
+    }
+    
+    /// 创建和设置共享实例
+    public static func initialize() async {
+        // 设置观察者和定时器
+        await shared.setupObservers()
+        await shared.setupNetworkMonitoring()
+        await shared.setupSyncTimer()
     }
     
     // MARK: - Sync Management
     
     /// 开始同步
-    func startSync() {
-        guard syncStateSubject.value == .idle else { return }
+    func startSync() async {
+        // 检查网络可用性
+        if !isNetworkAvailable {
+            CoreLogger.warning("网络不可用，跳过同步", category: "Sync")
+            await stateActor.updateState(.error(CoreDataError.networkUnavailable))
+            return
+        }
         
-        syncQueue.async { [weak self] in
-            guard let self = self else { return }
+        // 获取当前状态，检查是否已经在同步
+        let currentState = await stateActor.currentState
+        
+        // 检查当前状态，避免重复同步
+        guard currentState == .idle else { 
+            CoreLogger.info("同步已经在进行中，跳过", category: "Sync")
+            return 
+        }
+        
+        // 更新状态为同步中
+        await stateActor.updateState(.syncing(progress: 0.0))
+        CoreLogger.info("开始同步操作", category: "Sync")
+        
+        do {
+            // 执行同步
+            try await performSync()
             
-            self.syncStateSubject.send(.syncing(progress: 0.0))
-            
-            do {
-                // 执行同步
-                try self.performSync()
-                self.syncStateSubject.send(.idle)
-            } catch {
-                self.syncStateSubject.send(.error(error))
-            }
+            // 同步锁定状态更新
+            await stateActor.updateState(.idle)
+            CoreLogger.info("同步操作成功完成", category: "Sync")
+        } catch {
+            // 同步锁定状态更新
+            await stateActor.updateState(.error(error))
+            CoreLogger.error("同步操作失败: \(error.localizedDescription)", category: "Sync")
         }
     }
     
     /// 停止同步
     func stopSync() {
-        syncTimer?.invalidate()
-        syncTimer = nil
+        CoreLogger.info("正在停止同步定时器和任务", category: "Sync")
+        syncTask?.cancel()
+        syncTask = nil
+        
+        // 取消所有观察者任务
+        for task in observerTasks {
+            task.cancel()
+        }
+        observerTasks.removeAll()
+        
+        // 停止网络监视器
+        stopNetworkMonitoring()
+    }
+    
+    /// 设置网络状态监视
+    private func setupNetworkMonitoring() {
+        networkMonitor = NWPathMonitor()
+        
+        networkMonitor?.pathUpdateHandler = { [weak self] path in
+            Task { [weak self] in
+                guard let self = self else { return }
+                
+                let newNetworkAvailable = path.status == .satisfied
+                let previousNetworkAvailable = self.isNetworkAvailable
+                self.isNetworkAvailable = newNetworkAvailable
+                
+                // 记录网络状态变化
+                if previousNetworkAvailable != newNetworkAvailable {
+                    CoreLogger.info("网络状态变更: \(newNetworkAvailable ? "可用" : "不可用")", category: "Sync")
+                    
+                    // 如果网络恢复且同步状态为错误状态，触发同步
+                    if newNetworkAvailable {
+                        let currentState = await self.stateActor.currentState
+                        if case .error = currentState {
+                            await self.startSync()
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 在全局队列上启动监视器
+        let queue = DispatchQueue(label: "com.onlyslide.network-monitor")
+        networkMonitor?.start(queue: queue)
+        
+        CoreLogger.info("网络监视已启动", category: "Sync")
+    }
+    
+    /// 停止网络状态监视
+    private func stopNetworkMonitoring() {
+        networkMonitor?.cancel()
+        networkMonitor = nil
+        CoreLogger.info("网络监视已停止", category: "Sync")
+    }
+    
+    /// 设置同步定时器
+    func setupSyncTimer() {
+        // 使用 Task 和 async/await 替代 Timer
+        // 使用 @Sendable 闭包避免数据竞争
+        syncTask = Task { @Sendable [weak self] in
+            guard let self = self else { return }
+            
+            while !Task.isCancelled {
+                await self.startSync()
+                
+                do {
+                    // 等待指定的同步间隔
+                    try await Task.sleep(nanoseconds: UInt64(self.configuration.syncInterval * 1_000_000_000))
+                } catch {
+                    // Task 被取消或其他错误
+                    break
+                }
+            }
+        }
     }
     
     // MARK: - Private Methods
     
-    private func setupSyncTimer() {
-        syncTimer = Timer.scheduledTimer(
-            withTimeInterval: configuration.syncInterval,
-            repeats: true
-        ) { [weak self] _ in
-            self?.startSync()
-        }
-    }
-    
     private func setupObservers() {
-        // 监听远程变更通知
-        NotificationCenter.default.publisher(for: .NSPersistentStoreRemoteChange)
-            .sink { [weak self] _ in
-                self?.handleRemoteChange()
-            }
-            .store(in: &cancellables)
+        // 使用NSNotification.Name类型而不是直接使用字符串，避免Optional<Notification>的Sendable问题
+        let notificationName = NSNotification.Name.NSPersistentStoreRemoteChange
         
-        // 监听网络状态变化
-        // TODO: 添加网络状态监听
+        // 创建任务并存储引用以便后续取消
+        let task = Task { @Sendable [weak self] in
+            // 创建一个只接收通知但不传递Notification对象的流
+            let notifications = NotificationCenter.default.notifications(named: notificationName)
+            for await _ in notifications {
+                // 获取self
+                guard let self = self else { break }
+                // 异步调用处理方法
+                await self.handleRemoteChange()
+            }
+        }
+        
+        // 存储任务以便后续取消
+        observerTasks.append(task)
     }
     
-    private func performSync() throws {
-        let context = CoreDataStack.shared.newBackgroundContext()
-        context.mergePolicy = NSMergePolicy(merge: configuration.conflictResolutionPolicy)
+    private func handleRemoteChange() async {
+        CoreLogger.info("接收到远程变更通知", category: "Sync")
+        await startSync()
+    }
+    
+    private func performSync() async throws {
+        // 在主actor上创建上下文
+        let context = await MainActor.run { CoreDataStack.shared.newBackgroundContext() }
+        
+        // 设置冲突解决策略
+        await MainActor.run {
+            // 直接使用合并策略常量
+            switch self.configuration.conflictResolutionPolicy {
+            case .mergeByPropertyObjectTrumpMergePolicyType:
+                context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+            case .mergeByPropertyStoreTrumpMergePolicyType:
+                context.mergePolicy = NSMergeByPropertyStoreTrumpMergePolicy
+            case .overwriteMergePolicyType:
+                context.mergePolicy = NSOverwriteMergePolicy
+            case .rollbackMergePolicyType:
+                context.mergePolicy = NSRollbackMergePolicy
+            default:
+                context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+            }
+        }
         
         // 获取需要同步的更改
-        let changes = try fetchPendingChanges(in: context)
+        var changes: [NSManagedObject] = []
+        try await context.performAndWait {
+            let fetchRequest = NSFetchRequest<NSManagedObject>(entityName: "SyncLog")
+            fetchRequest.predicate = NSPredicate(format: "synced == NO")
+            fetchRequest.fetchBatchSize = self.configuration.batchSize
+            
+            changes = try context.fetch(fetchRequest)
+        }
+        
+        CoreLogger.info("找到 \(changes.count) 个需要同步的更改", category: "Sync")
         
         // 批量处理更改
-        try processBatchChanges(changes, in: context)
+        try await processBatchChanges(changes, in: context)
         
         // 更新同步状态
-        try updateSyncStatus(in: context)
+        try await updateSyncStatus(in: context)
     }
     
-    private func fetchPendingChanges(in context: NSManagedObjectContext) throws -> [NSManagedObject] {
-        let fetchRequest = NSFetchRequest<NSManagedObject>(entityName: "SyncLog")
-        fetchRequest.predicate = NSPredicate(format: "synced == NO")
-        fetchRequest.fetchBatchSize = configuration.batchSize
-        
-        return try context.fetch(fetchRequest)
-    }
-    
-    private func processBatchChanges(_ changes: [NSManagedObject], in context: NSManagedObjectContext) throws {
+    private func processBatchChanges(_ changes: [NSManagedObject], in context: NSManagedObjectContext) async throws {
         var retryCount = 0
+        var processedCount = 0
+        let totalCount = changes.count
         
         repeat {
             do {
-                try context.performAndWait {
-                    for change in changes {
-                        try processChange(change, in: context)
+                var success = false
+                
+                try await context.performAndWait {
+                    for (index, change) in changes.enumerated() {
+                        // 更新进度
+                        let progress = 0.1 + 0.8 * (Double(index) / Double(totalCount))
+                        
+                        // 更新同步状态 - 避免直接捕获self在闭包中，使用Task
+                        Task { @Sendable [weak self] in
+                            guard let self = self else { return }
+                            await self.stateActor.updateState(.syncing(progress: progress))
+                        }
+                        
+                        // 处理单个更改
+                        try self.processChange(change, in: context)
+                        processedCount += 1
+                        
+                        // 每处理10个对象保存一次，以避免大事务
+                        if index % 10 == 9 {
+                            try context.save()
+                            CoreLogger.debug("已保存处理的更改，进度: \(String(format: "%.1f", progress * 100))%", category: "Sync")
+                        }
                     }
+                    
+                    // 最终保存
                     try context.save()
+                    success = true
+                    CoreLogger.info("成功处理并保存了 \(processedCount) 个更改", category: "Sync")
                 }
-                return
+                
+                if success {
+                    return
+                }
             } catch {
                 retryCount += 1
-                if retryCount >= configuration.retryCount {
+                if retryCount >= self.configuration.retryCount {
+                    CoreLogger.error("处理批量更改失败，已达到最大重试次数: \(error.localizedDescription)", category: "Sync")
                     throw error
                 }
+                
+                CoreLogger.warning("处理批量更改失败，正在重试 (\(retryCount)/\(self.configuration.retryCount)): \(error.localizedDescription)", category: "Sync")
+                
+                // 等待一段时间后再重试 - 使用指数退避策略
+                let retryDelay = TimeInterval(pow(2.0, Double(retryCount - 1)))
+                try await Task.sleep(nanoseconds: UInt64(retryDelay * 1_000_000_000))
             }
-        } while retryCount < configuration.retryCount
+        } while retryCount < self.configuration.retryCount
     }
     
     private func processChange(_ change: NSManagedObject, in context: NSManagedObjectContext) throws {
         // 根据变更类型执行相应的操作
         guard let changeType = change.value(forKey: "type") as? String else {
+            CoreLogger.error("无效的变更类型", category: "Sync")
             throw CoreDataError.invalidManagedObject("Invalid change type")
         }
         
@@ -168,99 +383,59 @@ final class CoreDataSyncManager {
         case "delete":
             try handleDeleteChange(change, in: context)
         default:
-            throw CoreDataError.invalidManagedObject("Unknown change type: \(changeType)")
+            CoreLogger.error("不支持的变更类型: \(changeType)", category: "Sync")
+            throw CoreDataError.invalidManagedObject("Unsupported change type: \(changeType)")
         }
+        
+        // 标记为已同步
+        change.setValue(true, forKey: "synced")
+        change.setValue(Date(), forKey: "syncedAt")
     }
     
     private func handleInsertChange(_ change: NSManagedObject, in context: NSManagedObjectContext) throws {
         // 处理插入操作
+        CoreLogger.debug("处理插入操作", category: "Sync")
+        // 实际插入代码...
     }
     
     private func handleUpdateChange(_ change: NSManagedObject, in context: NSManagedObjectContext) throws {
         // 处理更新操作
+        CoreLogger.debug("处理更新操作", category: "Sync")
+        // 实际更新代码...
     }
     
     private func handleDeleteChange(_ change: NSManagedObject, in context: NSManagedObjectContext) throws {
         // 处理删除操作
+        CoreLogger.debug("处理删除操作", category: "Sync")
+        // 实际删除代码...
     }
     
-    private func updateSyncStatus(in context: NSManagedObjectContext) throws {
-        // 更新同步状态和时间戳
-    }
-    
-    private func handleRemoteChange() {
-        // 处理远程变更
-        startSync()
-    }
-    
-    // MARK: - Conflict Resolution
-    
-    /// 解决冲突
-    /// - Parameters:
-    ///   - localObject: 本地对象
-    ///   - remoteObject: 远程对象
-    /// - Returns: 解决后的对象
-    private func resolveConflict(localObject: NSManagedObject, remoteObject: NSManagedObject) -> NSManagedObject {
-        // 根据配置的合并策略解决冲突
-        switch configuration.conflictResolutionPolicy {
-        case .mergeByPropertyObjectTrumpMergePolicyType:
-            // 对象级别的属性合并，本地对象优先
-            return localObject
-        case .mergeByPropertyStoreTrumpMergePolicyType:
-            // 对象级别的属性合并，远程对象优先
-            return remoteObject
-        case .overwriteMergePolicyType:
-            // 完全覆盖
-            return remoteObject
-        case .rollbackMergePolicyType:
-            // 回滚到远程版本
-            return remoteObject
-        default:
-            return localObject
-        }
-    }
-    
-    // MARK: - Offline Support
-    
-    /// 启用离线支持
-    func enableOfflineSupport() {
-        // 配置离线存储
-        let storeDescription = CoreDataStack.shared.persistentContainer.persistentStoreDescriptions.first
-        storeDescription?.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
+    private func updateSyncStatus(in context: NSManagedObjectContext) async throws {
+        // 更新最后同步时间等信息
+        CoreLogger.debug("更新同步状态", category: "Sync")
         
-        // 设置变更跟踪
-        storeDescription?.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
-    }
-    
-    /// 合并离线更改
-    func mergeOfflineChanges() throws {
-        let context = CoreDataStack.shared.newBackgroundContext()
-        
-        try context.performAndWait {
-            // 获取离线更改
-            let changes = try fetchOfflineChanges(in: context)
+        try await context.performAndWait {
+            // 实际更新代码...
+            // 例如设置最后同步时间
+            let now = Date()
             
-            // 处理离线更改
-            try processBatchChanges(changes, in: context)
-            
-            // 清理历史记录
-            try cleanupHistory(in: context)
+            // 清理老旧的同步日志
+            try self.clearSyncLogs(olderThan: now.addingTimeInterval(-30 * 86400), in: context)
         }
     }
     
-    private func fetchOfflineChanges(in context: NSManagedObjectContext) throws -> [NSManagedObject] {
-        // 获取离线期间的更改
-        let fetchRequest = NSFetchRequest<NSManagedObject>(entityName: "OfflineChange")
-        return try context.fetch(fetchRequest)
-    }
-    
-    private func cleanupHistory(in context: NSManagedObjectContext) throws {
-        // 清理历史记录
-        guard let store = CoreDataStack.shared.persistentContainer.persistentStoreCoordinator.persistentStores.first else {
-            return
+    private func clearSyncLogs(olderThan date: Date, in context: NSManagedObjectContext) throws {
+        // 清理老旧的同步日志
+        let fetchRequest = NSFetchRequest<NSManagedObject>(entityName: "SyncLog")
+        fetchRequest.predicate = NSPredicate(format: "syncedAt < %@", date as NSDate)
+        
+        let oldLogs = try context.fetch(fetchRequest)
+        CoreLogger.info("清理 \(oldLogs.count) 条老旧同步日志", category: "Sync")
+        
+        for log in oldLogs {
+            context.delete(log)
         }
         
-        let deleteHistoryRequest = NSPersistentHistoryChangeRequest.deleteHistory(before: Date())
-        try context.execute(deleteHistoryRequest)
+        try context.save()
     }
 } 

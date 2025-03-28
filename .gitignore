@@ -13,3 +13,7 @@ DerivedData/
 .netrc
 # 构建产物
 .build-artifacts/
+build/
+.build/
+.xcignore
+.xcode.env

@@ -1,9 +1,11 @@
-import Foundation
-import CoreData
+@preconcurrency import Foundation
+@preconcurrency import CoreData
+// 导入标准的MigrationProgress定义
+@preconcurrency import CoreDataModule
 
 /// 迁移启动处理器
 /// 负责在应用启动时执行必要的数据库迁移
-public final class MigrationStartupHandler {
+@MainActor public final class MigrationStartupHandler: @unchecked Sendable {
     
     // MARK: - Properties
     
@@ -55,13 +57,11 @@ public final class MigrationStartupHandler {
         
         do {
             // 检查是否需要迁移
-            let needsMigration = try versionManager.requiresMigration(at: storeURL)
+            let needsMigration = try await versionManager.requiresMigration(at: storeURL)
             
             if needsMigration {
                 // 需要迁移，执行迁移
-                let didMigrate = try await migrationManager.performMigration(at: storeURL) { [weak self] progress in
-                    self?.migrationProgressObserver?(progress)
-                }
+                let didMigrate = try await migrationManager.checkAndMigrateStoreIfNeeded(at: storeURL)
                 
                 self.migrationCompleted = true
                 return didMigrate
@@ -110,7 +110,7 @@ public final class MigrationStartupHandler {
 }
 
 /// 迁移状态
-public enum MigrationStatus: Equatable {
+public enum MigrationStatus: Equatable, Sendable {
     /// 正在进行
     case inProgress
     /// 已完成
@@ -138,7 +138,7 @@ import SwiftUI
 /// 迁移管理器包装器
 /// 用于在SwiftUI中使用迁移管理器
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
-public class MigrationManager: ObservableObject {
+@MainActor public final class MigrationManager: ObservableObject {
     
     /// 迁移启动处理器
     private let startupHandler: MigrationStartupHandler
@@ -161,14 +161,12 @@ public class MigrationManager: ObservableObject {
         let url = storeURL ?? MigrationStartupHandler.getStoreURL()
         
         _ = await startupHandler.checkAndMigrateStoreIfNeeded(at: url) { [weak self] progress in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self?.progress = progress
             }
         }
         
-        DispatchQueue.main.async {
-            self.status = self.startupHandler.getMigrationStatus()
-        }
+        status = startupHandler.getMigrationStatus()
     }
 }
 #endif 

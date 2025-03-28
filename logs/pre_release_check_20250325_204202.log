@@ -1,0 +1,6 @@
+执行发布前检查 - 2025年 3月25日 星期二 20时42分02秒 CST
+Sources//CoreDataModule/Migration/MigrationResult.swift:public enum MigrationResult: Sendable {
+Sources//CoreDataModule/Migration/MigrationDomainTypes.swift:public enum MigrationResult: Equatable, Sendable {
+Sources//Examples/ArchitectureExample.swift:enum MigrationResult: Equatable {
+warning: Usage of /Users/niqian/01.项目建设/02.计划/OnlySlide/.swiftpm/config has been deprecated. Please delete it and use the new /Users/niqian/01.项目建设/02.计划/OnlySlide/.swiftpm/configuration/mirrors.json instead.
+error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "The given data was not valid JSON.", underlyingError: Optional(Error Domain=NSCocoaErrorDomain Code=3840 "Unexpected character 'g' around line 1, column 2." UserInfo={NSJSONSerializationErrorIndex=1, NSDebugDescription=Unexpected character 'g' around line 1, column 2.})))

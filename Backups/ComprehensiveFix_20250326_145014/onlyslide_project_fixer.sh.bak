@@ -1,0 +1,686 @@
+#!/bin/bash
+
+# ======================================================
+# OnlySlide项目构建问题智能修复工具 v1.0
+# 作者: AI助手
+# 功能: 分析并修复iOS项目中的构建冲突问题
+# ======================================================
+
+# -------- 颜色设置 --------
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[0;33m' 
+RED='\033[0;31m'
+CYAN='\033[0;36m'
+MAGENTA='\033[0;35m'
+NC='\033[0m' # 恢复默认颜色
+
+# -------- 配置选项 --------
+BACKUP_ENABLED=true
+ANALYZE_ONLY=false
+VERBOSE=false
+FIX_README=true
+FIX_SWIFT_BLOCKING=true
+FIX_DUPLICATE_OUTPUT=true
+PROJECT_FILE="OnlySlide.xcodeproj/project.pbxproj"
+
+# -------- 帮助信息 --------
+print_help() {
+    echo -e "${CYAN}OnlySlide项目构建问题智能修复工具 v1.0${NC}"
+    echo ""
+    echo "用法: $0 [选项]"
+    echo ""
+    echo "选项:"
+    echo "  -h, --help                显示此帮助信息"
+    echo "  -a, --analyze-only        仅分析，不修复"
+    echo "  -v, --verbose             显示详细输出"
+    echo "  --no-backup               不创建备份"
+    echo "  --no-fix-readme           不修复README.md冲突"
+    echo "  --no-fix-swift            不修复Swift任务阻塞"
+    echo "  --no-fix-duplicate        不修复重复输出文件"
+    echo ""
+    echo "示例:"
+    echo "  $0 --analyze-only         仅分析项目问题"
+    echo "  $0 --verbose              详细模式执行修复"
+    echo "  $0 --no-backup            不创建备份直接修复"
+    exit 0
+}
+
+# -------- 参数解析 --------
+parse_arguments() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -h|--help)
+                print_help
+                ;;
+            -a|--analyze-only)
+                ANALYZE_ONLY=true
+                shift
+                ;;
+            -v|--verbose)
+                VERBOSE=true
+                shift
+                ;;
+            --no-backup)
+                BACKUP_ENABLED=false
+                shift
+                ;;
+            --no-fix-readme)
+                FIX_README=false
+                shift
+                ;;
+            --no-fix-swift)
+                FIX_SWIFT_BLOCKING=false
+                shift
+                ;;
+            --no-fix-duplicate)
+                FIX_DUPLICATE_OUTPUT=false
+                shift
+                ;;
+            *)
+                echo -e "${RED}错误: 未知参数 $1${NC}"
+                print_help
+                ;;
+        esac
+    done
+}
+
+# -------- 日志函数 --------
+log_info() {
+    echo -e "${BLUE}[信息] $1${NC}"
+}
+
+log_success() {
+    echo -e "${GREEN}[成功] $1${NC}"
+}
+
+log_warning() {
+    echo -e "${YELLOW}[警告] $1${NC}"
+}
+
+log_error() {
+    echo -e "${RED}[错误] $1${NC}"
+}
+
+log_debug() {
+    if [ "$VERBOSE" = true ]; then
+        echo -e "${CYAN}[调试] $1${NC}"
+    fi
+}
+
+log_phase() {
+    echo -e "\n${MAGENTA}=== $1 ===${NC}"
+}
+
+# -------- 工具函数 --------
+check_command() {
+    if ! command -v "$1" &> /dev/null; then
+        log_warning "找不到命令: $1"
+        return 1
+    fi
+    return 0
+}
+
+check_file() {
+    if [ ! -f "$1" ]; then
+        log_warning "找不到文件: $1"
+        return 1
+    fi
+    return 0
+}
+
+# 检查必要条件
+check_prerequisites() {
+    log_phase "检查环境"
+    
+    # 检查项目文件
+    if ! check_file "$PROJECT_FILE"; then
+        log_error "找不到项目文件 $PROJECT_FILE"
+        exit 1
+    else
+        log_success "找到项目文件 $PROJECT_FILE"
+    fi
+    
+    # 检查必要工具
+    local tools=("sed" "grep" "find" "xcodebuild")
+    local missing=false
+    
+    for tool in "${tools[@]}"; do
+        if check_command "$tool"; then
+            log_debug "找到工具: $tool"
+        else
+            missing=true
+        fi
+    done
+    
+    if [ "$missing" = true ]; then
+        log_warning "某些必要工具缺失，可能影响修复效果"
+    else
+        log_success "所有必要工具可用"
+    fi
+}
+
+# -------- 备份函数 --------
+create_backup() {
+    if [ "$BACKUP_ENABLED" = false ]; then
+        log_info "已禁用备份"
+        return 0
+    fi
+    
+    log_phase "创建项目备份"
+    
+    BACKUP_DIR="./Backups/ProjectFix_$(date +%Y%m%d_%H%M%S)"
+    mkdir -p "$BACKUP_DIR"
+    
+    # 备份项目文件
+    cp "$PROJECT_FILE" "$BACKUP_DIR/project.pbxproj.bak"
+    
+    # 备份Info.plist文件
+    find . -name "Info.plist" -type f -exec cp {} "$BACKUP_DIR/" \;
+    
+    # 备份Package.swift
+    if [ -f "Package.swift" ]; then
+        cp "Package.swift" "$BACKUP_DIR/"
+    fi
+    
+    # 备份README.md文件
+    mkdir -p "$BACKUP_DIR/READMEs"
+    find . -name "README.md" -type f | while read -r file; do
+        rel_path=${file#./}
+        dir=$(dirname "$rel_path")
+        mkdir -p "$BACKUP_DIR/READMEs/$dir"
+        cp "$file" "$BACKUP_DIR/READMEs/$rel_path"
+    done
+    
+    log_success "已创建备份: $BACKUP_DIR"
+    return 0
+}
+
+# -------- 项目分析函数 --------
+analyze_project() {
+    log_phase "分析项目问题"
+    
+    # 创建临时分析目录
+    local ANALYSIS_DIR="./Temp/Analysis_$(date +%Y%m%d_%H%M%S)"
+    mkdir -p "$ANALYSIS_DIR"
+    
+    log_info "分析README.md文件冲突..."
+    # 提取所有README.md引用
+    grep -n "README.md" "$PROJECT_FILE" > "$ANALYSIS_DIR/readme_references.txt"
+    
+    # 计算README.md文件数量
+    local readme_count=$(find . -name "README.md" -type f | wc -l | tr -d ' ')
+    log_info "找到 $readme_count 个README.md文件"
+    
+    # 提取Copy Files构建阶段
+    grep -A 10 "PBXCopyFilesBuildPhase" "$PROJECT_FILE" | grep -B 10 "shellScript.*cp.*README" > "$ANALYSIS_DIR/copy_phases.txt"
+    
+    log_info "分析Swift任务阻塞问题..."
+    # 检查Swift编译设置
+    grep -A 3 "SWIFT_COMPILATION_MODE" "$PROJECT_FILE" > "$ANALYSIS_DIR/swift_settings.txt"
+    
+    log_info "分析重复输出文件问题..."
+    # 提取目标产品路径
+    grep -A 5 "BUILT_PRODUCTS_DIR" "$PROJECT_FILE" > "$ANALYSIS_DIR/product_paths.txt"
+    
+    # 计算分析结果
+    local readme_refs=$(grep -c "README.md" "$PROJECT_FILE")
+    local copy_phases=$(grep -c "PBXCopyFilesBuildPhase.*README" "$ANALYSIS_DIR/copy_phases.txt")
+    local swift_settings=$(grep -c "SWIFT_COMPILATION_MODE" "$PROJECT_FILE")
+    
+    # 显示分析摘要
+    log_phase "问题分析摘要"
+    echo -e "${YELLOW}README.md引用: ${readme_refs}个${NC}"
+    echo -e "${YELLOW}Copy Files阶段: ${copy_phases}个${NC}"
+    echo -e "${YELLOW}Swift编译设置: ${swift_settings}个${NC}"
+    
+    # 详细问题诊断
+    echo ""
+    log_info "详细诊断:"
+    
+    # README问题诊断
+    if [ $readme_refs -gt 10 ]; then
+        log_warning "项目中存在过多README.md引用，可能导致复制冲突"
+    else
+        log_info "README.md引用数量在正常范围内"
+    fi
+    
+    # Swift问题诊断
+    if [ $swift_settings -eq 0 ]; then
+        log_warning "未找到Swift编译优化设置，可能导致任务阻塞"
+    else
+        log_info "已配置Swift编译设置"
+    fi
+    
+    log_success "分析完成，结果保存在: $ANALYSIS_DIR"
+    
+    # 返回分析结果
+    echo "$ANALYSIS_DIR"
+}
+
+# -------- 修复函数 --------
+
+# 1. 精确修复README.md冲突问题
+fix_readme_conflicts() {
+    if [ "$FIX_README" = false ]; then
+        log_info "已跳过README.md冲突修复"
+        return 0
+    fi
+    
+    log_phase "修复README.md冲突问题"
+    
+    # 1.1 创建README专用目录结构
+    log_info "创建README文件专用目录结构..."
+    mkdir -p "Resources/Documentation/README_Files"
+    
+    # 1.2 重定向而不是删除README复制命令
+    log_info "重定向README复制命令..."
+    # 将目标路径从Resources改为Resources/Documentation/README_Files
+    sed -i.bak 's|\(dstPath[[:space:]]*=[[:space:]]*"\)Resources"|\1Resources/Documentation/README_Files"|g' "$PROJECT_FILE"
+    
+    # 1.3 修改shell脚本中的复制命令
+    log_info "修改shell脚本中的README复制命令..."
+    # 将脚本中的目标路径修改为专用目录
+    sed -i.bak 's|cp[[:space:]]*\([^[:space:]]*README.md\)[[:space:]]*"\${\?BUILT_PRODUCTS_DIR}\${\?}/\${\?CONTENTS_FOLDER_PATH}\${\?}/Resources/|cp \1 "${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources/Documentation/README_Files/|g' "$PROJECT_FILE"
+    
+    # 1.4 重命名重要的README文件，避免名称冲突
+    log_info "重命名重要的README文件，避免名称冲突..."
+    
+    # 需要特殊处理的重要目录，确保每个README有唯一名称
+    important_dirs=(
+        "Scripts"
+        "Sources/Core"
+        "Sources/Features"
+        "Sources/Common"
+        "Sources/CoreDataModule"
+        "Resources"
+    )
+    
+    for dir in "${important_dirs[@]}"; do
+        if [ -f "$dir/README.md" ]; then
+            dirname=$(basename "$dir")
+            parentdir=$(basename "$(dirname "$dir")")
+            new_name="$dir/${parentdir}_${dirname}_README.md"
+            cp "$dir/README.md" "$new_name"
+            log_success "复制: $dir/README.md -> $new_name"
+            
+            # 创建链接文件
+            echo "<!-- 此README已被复制到 $new_name 避免构建冲突 -->" > "$dir/README.md"
+            echo "请参阅 [$(basename "$new_name")](./$(basename "$new_name")) 获取此目录的文档。" >> "$dir/README.md"
+        fi
+    done
+    
+    # 1.5 创建更智能的.xcignore文件
+    log_info "创建智能的.xcignore文件..."
+    cat > .xcignore << 'EOF'
+# 智能README文件过滤规则
+# 保留根目录README.md，忽略其他所有README副本
+
+# 允许复制专用README目录下的文件
+!Resources/Documentation/README_Files/
+
+# 忽略所有其他README.md文件
+README.md
+**/README.md
+*_README.md
+**/*_README.md
+
+# 排除特定目录下的所有README文件
+# 但允许使用重命名后的文件
+Scripts/*/README.md
+Sources/*/README.md
+Sources/*/*/README.md
+Tests/*/README.md
+Resources/*/README.md
+EOF
+    
+    log_success "README.md冲突修复完成"
+    return 0
+}
+
+# 2. 修复Swift任务阻塞问题
+fix_swift_blocking() {
+    if [ "$FIX_SWIFT_BLOCKING" = false ]; then
+        log_info "已跳过Swift任务阻塞修复"
+        return 0
+    fi
+    
+    log_phase "修复Swift任务阻塞问题"
+    
+    # 2.1 添加Swift编译优化设置
+    log_info "添加Swift编译优化设置..."
+    
+    # 创建Swift编译设置文件
+    cat > .xcode.env << 'EOF'
+// Swift编译优化设置
+SWIFT_COMPILATION_MODE = wholemodule
+SWIFT_OPTIMIZATION_LEVEL = -O
+OTHER_SWIFT_FLAGS = -Xfrontend -enable-batch-mode
+EOF
+    
+    # 2.2 调整并发编译设置
+    log_info "调整Xcode并发编译设置..."
+    
+    # 在用户默认设置中设置适当的并发编译任务数
+    # 注意：这会影响全局Xcode设置
+    if [ "$(uname)" = "Darwin" ]; then
+        if check_command "defaults"; then
+            # 获取CPU核心数并设置为其一半（最少4个）
+            cores=$(sysctl -n hw.ncpu || echo 8)
+            concurrent_tasks=$(( cores / 2 ))
+            if [ $concurrent_tasks -lt 4 ]; then
+                concurrent_tasks=4
+            fi
+            
+            defaults write com.apple.dt.Xcode IDEBuildOperationMaxNumberOfConcurrentCompileTasks $concurrent_tasks
+            log_success "已将并发编译任务数设置为: $concurrent_tasks"
+        else
+            log_warning "无法设置Xcode并发编译设置"
+        fi
+    fi
+    
+    # 2.3 修改项目构建设置
+    log_info "修改项目Swift构建设置..."
+    
+    # 检查项目中是否已有Swift优化设置
+    if ! grep -q "SWIFT_COMPILATION_MODE" "$PROJECT_FILE"; then
+        # 添加到buildSettings部分
+        sed -i.bak '/buildSettings = {/a \
+            SWIFT_COMPILATION_MODE = "wholemodule";\
+            SWIFT_OPTIMIZATION_LEVEL = "-O";
+        ' "$PROJECT_FILE"
+        log_success "已添加Swift编译优化设置"
+    else
+        log_info "项目已有Swift编译优化设置"
+    fi
+    
+    log_success "Swift任务阻塞修复完成"
+    return 0
+}
+
+# 3. 修复重复输出文件问题
+fix_duplicate_output() {
+    if [ "$FIX_DUPLICATE_OUTPUT" = false ]; then
+        log_info "已跳过重复输出文件修复"
+        return 0
+    fi
+    
+    log_phase "修复重复输出文件问题"
+    
+    # 3.1 分析并清理多余的Copy Files构建阶段
+    log_info "分析并清理重复的Copy Files构建阶段..."
+    
+    # 创建临时文件记录所有Copy Files阶段
+    grep -n "begin PBXCopyFilesBuildPhase" "$PROJECT_FILE" | sort -rn > temp_copy_phases.txt
+    
+    # 读取并分析每个Copy Files阶段
+    declare -A dest_paths
+    while read -r line; do
+        lineno=${line%%:*}
+        # 提取这个阶段的目标路径
+        path_line=$(tail -n +$lineno "$PROJECT_FILE" | grep -m 1 "dstPath")
+        if [[ $path_line =~ dstPath[[:space:]]*=[[:space:]]*\"([^\"]*)\" ]]; then
+            path="${BASH_REMATCH[1]}"
+            # 如果已存在相同路径的构建阶段，标记为重复
+            if [[ -n "${dest_paths[$path]}" ]]; then
+                echo "$lineno" >> duplicate_phases.txt
+            else
+                dest_paths[$path]=$lineno
+            fi
+        fi
+    done < temp_copy_phases.txt
+    
+    # 如果找到重复阶段，修复它们
+    if [ -f duplicate_phases.txt ]; then
+        duplicate_count=$(wc -l < duplicate_phases.txt)
+        log_warning "发现 $duplicate_count 个重复的Copy Files构建阶段"
+        
+        # 修复方法：为每个重复阶段创建唯一的目标路径
+        counter=1
+        while read -r lineno; do
+            # 修改目标路径，添加唯一编号
+            sed -i.bak "$lineno,+10 s|\(dstPath[[:space:]]*=[[:space:]]*\"\)\([^\"]*\)\"|\1\2_$counter\"|" "$PROJECT_FILE"
+            counter=$((counter + 1))
+        done < duplicate_phases.txt
+        
+        log_success "已修复重复的Copy Files构建阶段"
+    else
+        log_info "未发现重复的Copy Files构建阶段"
+    fi
+    
+    # 3.2 修复Info.plist中的CFBundleIdentifier重复
+    log_info "检查CFBundleIdentifier配置..."
+    
+    # 查找所有Info.plist文件
+    find . -name "Info.plist" -type f | while read -r plist; do
+        # 检查是否包含CFBundleIdentifier
+        if grep -q "<key>CFBundleIdentifier</key>" "$plist"; then
+            # 提取当前值
+            if [[ $(grep -A 1 "<key>CFBundleIdentifier</key>" "$plist") =~ \<string\>([^\<]+)\</string\> ]]; then
+                current_id="${BASH_REMATCH[1]}"
+                # 如果包含$(PRODUCT_BUNDLE_IDENTIFIER)变量，无需修改
+                if [[ "$current_id" == *'$(PRODUCT_BUNDLE_IDENTIFIER)'* ]]; then
+                    log_debug "文件 $plist 使用变量标识符，无需修改"
+                else
+                    # 提取目录名作为后缀
+                    dir_name=$(basename "$(dirname "$plist")")
+                    # 修改为唯一标识符
+                    sed -i.bak "s|<string>$current_id</string>|<string>$current_id.$dir_name</string>|" "$plist"
+                    log_success "已修复 $plist 中的标识符: $current_id -> $current_id.$dir_name"
+                fi
+            fi
+        fi
+    done
+    
+    # 3.3 清理临时文件
+    rm -f temp_copy_phases.txt duplicate_phases.txt
+    
+    log_success "重复输出文件修复完成"
+    return 0
+}
+
+# -------- 验证函数 --------
+verify_fixes() {
+    log_phase "验证修复结果"
+    
+    # 1. 验证README.md问题修复
+    log_info "验证README.md冲突修复..."
+    
+    # 检查是否还有直接复制到Resources目录的命令
+    if grep -q "cp.*README.md.*Resources/" "$PROJECT_FILE"; then
+        log_warning "仍有README.md直接复制到Resources目录的命令"
+        echo "问题行:"
+        grep -n "cp.*README.md.*Resources/" "$PROJECT_FILE"
+    else
+        log_success "README.md复制路径已修复"
+    fi
+    
+    # 检查.xcignore文件
+    if [ -f ".xcignore" ]; then
+        log_success ".xcignore文件已创建"
+    else
+        log_warning "未找到.xcignore文件"
+    fi
+    
+    # 2. 验证Swift任务阻塞问题修复
+    log_info "验证Swift任务阻塞修复..."
+    
+    # 检查Swift编译设置
+    if grep -q "SWIFT_COMPILATION_MODE" "$PROJECT_FILE"; then
+        log_success "已配置Swift编译优化设置"
+    else
+        log_warning "未找到Swift编译优化设置"
+    fi
+    
+    # 3. 验证重复输出文件问题修复
+    log_info "验证重复输出文件修复..."
+    
+    # 检查是否有重复的目标路径
+    duplicate_paths=$(grep "dstPath" "$PROJECT_FILE" | sort | uniq -d)
+    if [ -n "$duplicate_paths" ]; then
+        log_warning "仍存在重复的目标路径:"
+        echo "$duplicate_paths"
+    else
+        log_success "未发现重复的目标路径"
+    fi
+    
+    log_success "验证完成"
+}
+
+# -------- 清理派生数据 --------
+clean_derived_data() {
+    log_phase "清理Xcode派生数据"
+    
+    # 清理派生数据
+    log_info "清理项目派生数据..."
+    rm -rf ~/Library/Developer/Xcode/DerivedData/OnlySlide-*
+    
+    # 清理构建文件夹
+    log_info "清理构建文件夹..."
+    rm -rf build/
+    rm -rf .build/
+    
+    log_success "清理完成"
+}
+
+# -------- 生成修复报告 --------
+generate_report() {
+    log_phase "生成修复报告"
+    
+    REPORT_FILE="./Build_Fix_Report_$(date +%Y%m%d_%H%M%S).md"
+    
+    # 创建报告头部
+    cat > "$REPORT_FILE" << EOF
+# OnlySlide项目构建问题修复报告
+
+**修复时间:** $(date "+%Y-%m-%d %H:%M:%S")
+
+## 修复摘要
+
+EOF
+    
+    # 添加修复摘要
+    if [ "$FIX_README" = true ]; then
+        echo "- ✅ README.md文件冲突问题已修复" >> "$REPORT_FILE"
+    else
+        echo "- ❌ README.md文件冲突问题未修复（已跳过）" >> "$REPORT_FILE"
+    fi
+    
+    if [ "$FIX_SWIFT_BLOCKING" = true ]; then
+        echo "- ✅ Swift任务阻塞问题已修复" >> "$REPORT_FILE"
+    else
+        echo "- ❌ Swift任务阻塞问题未修复（已跳过）" >> "$REPORT_FILE"
+    fi
+    
+    if [ "$FIX_DUPLICATE_OUTPUT" = true ]; then
+        echo "- ✅ 重复输出文件问题已修复" >> "$REPORT_FILE"
+    else
+        echo "- ❌ 重复输出文件问题未修复（已跳过）" >> "$REPORT_FILE"
+    fi
+    
+    # 添加下一步操作建议
+    cat >> "$REPORT_FILE" << EOF
+
+## 下一步操作
+
+1. 关闭并重新打开Xcode
+2. 选择 Product > Clean Build Folder
+3. 尝试重新构建项目
+
+如果问题仍然存在，请检查以下内容：
+
+1. Xcode项目中的Copy Files构建阶段
+2. 目标的构建设置中的产品标识符配置
+3. Package.swift中的资源配置
+
+## 技术详情
+
+- 项目文件：\`$PROJECT_FILE\`
+- 备份位置：\`$BACKUP_DIR\`
+- 修复脚本：\`$0\`
+
+EOF
+    
+    log_success "修复报告已生成: $REPORT_FILE"
+    
+    # 显示报告内容
+    if [ "$VERBOSE" = true ]; then
+        echo ""
+        cat "$REPORT_FILE"
+    fi
+}
+
+# -------- 主函数 --------
+main() {
+    echo -e "${CYAN}"
+    echo "===================================="
+    echo "OnlySlide项目构建问题智能修复工具 v1.0"
+    echo "===================================="
+    echo -e "${NC}"
+    
+    # 解析命令行参数
+    parse_arguments "$@"
+    
+    # 检查必要条件
+    check_prerequisites
+    
+    # 创建备份
+    create_backup
+    
+    # 分析项目
+    analysis_dir=$(analyze_project)
+    
+    # 如果是仅分析模式，到此结束
+    if [ "$ANALYZE_ONLY" = true ]; then
+        log_info "已完成分析，由于设置了--analyze-only，不执行修复"
+        exit 0
+    fi
+    
+    # 执行修复
+    fix_readme_conflicts
+    fix_swift_blocking
+    fix_duplicate_output
+    
+    # 验证修复
+    verify_fixes
+    
+    # 清理派生数据
+    clean_derived_data
+    
+    # 生成报告
+    generate_report
+    
+    log_phase "修复完成"
+    echo ""
+    echo -e "${GREEN}项目构建问题修复已完成！${NC}"
+    echo ""
+    echo "请按照以下步骤操作："
+    echo "1. 关闭并重新打开Xcode"
+    echo "2. 选择 Product > Clean Build Folder"
+    echo "3. 尝试重新构建项目"
+    echo ""
+    echo "如需详细报告，请参阅：$REPORT_FILE"
+}
+
+# 执行主函数
+main "$@" 
+# 添加.stringsdata文件冲突处理
+fix_stringsdata_conflicts() {
+  echo "处理.stringsdata文件冲突..."
+  
+  # 重命名冲突的.stringsdata文件标识符
+  find ${PROJECT_DIR} -name "*.strings" -o -name "*.stringsdict" | while read -r file; do
+    dir=$(dirname "$file")
+    base=$(basename "$file" | sed 's/\.[^.]*$//')
+    
+    # 添加目录前缀以避免冲突
+    dir_prefix=$(echo "$dir" | sed 's/[\/.]/_/g')
+    if [[ "$base" == "CommonTests" || "$base" == "Document" || "$base" == "XCTestSupport" ]]; then
+      echo "处理: $file"
+      mv "$file" "${dir}/${dir_prefix}_${base}.strings" 2>/dev/null || true
+    fi
+  done
+}
+
+# 调用函数
+fix_stringsdata_conflicts

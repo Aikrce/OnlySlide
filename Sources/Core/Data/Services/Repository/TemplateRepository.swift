@@ -1,6 +1,7 @@
 import Foundation
 import CoreData
 import os.log
+import CoreDataModule
 
 public class TemplateRepository: ITemplateRepository {
     private let context: NSManagedObjectContext
@@ -12,7 +13,7 @@ public class TemplateRepository: ITemplateRepository {
     
     public func create(_ template: TemplateModel) async throws {
         do {
-            let entity = Template(context: context)
+            let entity = CDTemplate(context: context)
             entity.id = template.id
             entity.name = template.name
             entity.content = template.content
@@ -30,7 +31,7 @@ public class TemplateRepository: ITemplateRepository {
     }
     
     public func get(byId id: UUID) async throws -> TemplateModel {
-        let fetchRequest: NSFetchRequest<Template> = Template.fetchRequest()
+        let fetchRequest: NSFetchRequest<CDTemplate> = CDTemplate.fetchRequest()
         fetchRequest.predicate = NSPredicate(format: "id == %@", id as CVarArg)
         
         do {
@@ -49,7 +50,7 @@ public class TemplateRepository: ITemplateRepository {
     
     public func update(_ template: TemplateModel) async throws {
         do {
-            let fetchRequest: NSFetchRequest<Template> = Template.fetchRequest()
+            let fetchRequest: NSFetchRequest<CDTemplate> = CDTemplate.fetchRequest()
             fetchRequest.predicate = NSPredicate(format: "id == %@", template.id as CVarArg)
             
             guard let existingTemplate = try context.fetch(fetchRequest).first else {
@@ -75,7 +76,7 @@ public class TemplateRepository: ITemplateRepository {
     
     public func delete(byId id: UUID) async throws {
         do {
-            let fetchRequest: NSFetchRequest<Template> = Template.fetchRequest()
+            let fetchRequest: NSFetchRequest<CDTemplate> = CDTemplate.fetchRequest()
             fetchRequest.predicate = NSPredicate(format: "id == %@", id as CVarArg)
             
             guard let template = try context.fetch(fetchRequest).first else {
@@ -95,7 +96,7 @@ public class TemplateRepository: ITemplateRepository {
     }
     
     public func getAll() async throws -> [TemplateModel] {
-        let fetchRequest: NSFetchRequest<Template> = Template.fetchRequest()
+        let fetchRequest: NSFetchRequest<CDTemplate> = CDTemplate.fetchRequest()
         
         do {
             let templates = try context.fetch(fetchRequest)
@@ -107,7 +108,7 @@ public class TemplateRepository: ITemplateRepository {
     }
     
     public func search(query: String) async throws -> [TemplateModel] {
-        let fetchRequest: NSFetchRequest<Template> = Template.fetchRequest()
+        let fetchRequest: NSFetchRequest<CDTemplate> = CDTemplate.fetchRequest()
         fetchRequest.predicate = NSPredicate(
             format: "name CONTAINS[cd] %@ OR content CONTAINS[cd] %@ OR category CONTAINS[cd] %@",
             query, query, query
