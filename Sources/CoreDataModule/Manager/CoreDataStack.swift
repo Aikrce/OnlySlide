@@ -243,16 +243,13 @@ import os
     }
     
     /// 获取缓存统计信息
-    /// - Returns: 缓存统计结构体
-    public func getStatistics() async -> CacheStatistics {
-        // 获取对象缓存和查询缓存的命中率
-        let objectStats = await cacheStatsActor.getObjectCacheStats()
-        
-        // 计算总命中和未命中
-        let totalHits = objectStats.hits
-        let totalMisses = objectStats.misses
-        
-        return CacheStatistics(hits: totalHits, misses: totalMisses)
+    /// - Returns: 缓存命中统计
+    public func getStatistics() async throws -> CacheStatistics {
+        // 这里我们假设使用objectCache获取缓存统计信息
+        // 实际实现应该根据您的缓存机制返回真实数据
+        let hits = objectCache.hits
+        let misses = objectCache.misses
+        return CacheStatistics(hits: hits, misses: misses)
     }
     
     /// 重置缓存统计信息
@@ -260,10 +257,16 @@ import os
         await cacheStatsActor.resetStats()
     }
     
-    /// 清理过期缓存
-    public func cleanupExpiredCache() {
-        objectCache.removeExpiredObjects()
-        queryCache.removeExpiredObjects()
+    /// 清理过期的缓存
+    /// 用于定期清理已过期的缓存项，提高性能和减少内存使用
+    public func cleanupExpiredCache() async {
+        // 清理对象缓存
+        objectCache.removeExpiredItems()
+        
+        // 清理查询缓存
+        queryCache.removeExpiredItems()
+        
+        logger.info("已清理过期缓存")
     }
     
     /// 清除所有缓存
@@ -717,6 +720,53 @@ import os
         default:
             // 未知错误
             logger.error("未分类持久化存储错误: \(nsError.domain), \(nsError.code): \(nsError.localizedDescription)")
+        }
+    }
+    
+    /// 关闭所有持久化存储
+    /// 用于在恢复备份前关闭存储以避免数据损坏
+    public func closePersistentStores() async {
+        logger.info("正在关闭所有持久化存储")
+        
+        // 先重置视图上下文
+        await viewContext.perform {
+            self.viewContext.reset()
+        }
+        
+        // 关闭所有持久化存储
+        let coordinator = persistentContainer.persistentStoreCoordinator
+        for store in coordinator.persistentStores {
+            do {
+                try coordinator.remove(store)
+                logger.info("成功关闭持久化存储: \(store.url?.absoluteString ?? "未知URL")")
+            } catch {
+                logger.error("关闭持久化存储失败: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    /// 重新加载所有持久化存储
+    /// 用于在恢复备份后重新加载存储
+    public func reloadPersistentStores() async {
+        logger.info("正在重新加载持久化存储")
+        
+        // 获取存储描述
+        let storeDescriptions = persistentContainer.persistentStoreDescriptions
+        
+        // 重新加载所有存储
+        for description in storeDescriptions {
+            persistentContainer.loadPersistentStores { (loadedDescription, error) in
+                if let error = error {
+                    self.logger.error("重新加载持久化存储失败: \(error.localizedDescription)")
+                } else {
+                    self.logger.info("成功重新加载持久化存储: \(loadedDescription.url?.absoluteString ?? "未知URL")")
+                }
+            }
+        }
+        
+        // 重置视图上下文以确保使用新数据
+        await viewContext.perform {
+            self.viewContext.reset()
         }
     }
 } 

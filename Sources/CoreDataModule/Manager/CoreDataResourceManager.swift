@@ -210,6 +210,134 @@ public actor CoreDataResourceManager: ResourceProviding {
         // 将备份文件复制到目标位置
         try FileManager.default.copyItem(at: backupURL, to: targetDirectoryURL.appendingPathComponent("store.sqlite"))
     }
+    
+    /// 备份数据存储
+    /// - Parameter storeURL: 要备份的存储URL
+    /// - Returns: 备份文件的URL
+    /// - Throws: 如果备份过程中出现错误，则抛出CoreDataError.backupFailed
+    public func backupStore(at storeURL: URL) async throws -> URL {
+        let fileManager = FileManager.default
+        let backupURL = backupStoreURL()
+        
+        // 确保存储文件存在
+        guard fileManager.fileExists(atPath: storeURL.path) else {
+            throw CoreDataError.backupFailed(description: "存储文件不存在于路径: \(storeURL.path)")
+        }
+        
+        do {
+            // 复制存储文件到备份位置
+            try fileManager.copyItem(at: storeURL, to: backupURL)
+            
+            // 复制相关的 -wal 和 -shm 文件（如果存在）
+            let storePath = storeURL.deletingLastPathComponent()
+            let storeFileName = storeURL.lastPathComponent
+            let fileNameWithoutExtension = storeURL.deletingPathExtension().lastPathComponent
+            
+            // 检查并复制WAL文件
+            let walURL = storePath.appendingPathComponent("\(fileNameWithoutExtension)-wal")
+            let backupWalURL = backupURL.deletingPathExtension().appendingPathComponent("\(backupURL.deletingPathExtension().lastPathComponent)-wal")
+            if fileManager.fileExists(atPath: walURL.path) {
+                try fileManager.copyItem(at: walURL, to: backupWalURL)
+            }
+            
+            // 检查并复制SHM文件
+            let shmURL = storePath.appendingPathComponent("\(fileNameWithoutExtension)-shm")
+            let backupShmURL = backupURL.deletingPathExtension().appendingPathComponent("\(backupURL.deletingPathExtension().lastPathComponent)-shm")
+            if fileManager.fileExists(atPath: shmURL.path) {
+                try fileManager.copyItem(at: shmURL, to: backupShmURL)
+            }
+            
+            return backupURL
+        } catch {
+            throw CoreDataError.backupFailed(description: "备份过程中发生错误: \(error.localizedDescription)")
+        }
+    }
+    
+    /// 从备份恢复数据存储
+    /// - Parameters:
+    ///   - backupURL: 备份文件的URL
+    ///   - storeURL: 要恢复到的存储URL
+    /// - Throws: 如果恢复过程中出现错误，则抛出CoreDataError.backupRestoreFailed
+    public func restoreBackup(at backupURL: URL, to storeURL: URL) async throws {
+        let fileManager = FileManager.default
+        
+        // 确保备份文件存在
+        guard fileManager.fileExists(atPath: backupURL.path) else {
+            throw CoreDataError.backupRestoreFailed(description: "备份文件不存在于路径: \(backupURL.path)")
+        }
+        
+        // 关闭持久化存储
+        await dataStack.closePersistentStores()
+        
+        do {
+            // 如果存储文件已存在，先删除它
+            if fileManager.fileExists(atPath: storeURL.path) {
+                try fileManager.removeItem(at: storeURL)
+                
+                // 同时移除相关的 -wal 和 -shm 文件（如果存在）
+                let storeDir = storeURL.deletingLastPathComponent()
+                let storeNameWithoutExt = storeURL.deletingPathExtension().lastPathComponent
+                
+                let walURL = storeDir.appendingPathComponent("\(storeNameWithoutExt)-wal")
+                if fileManager.fileExists(atPath: walURL.path) {
+                    try fileManager.removeItem(at: walURL)
+                }
+                
+                let shmURL = storeDir.appendingPathComponent("\(storeNameWithoutExt)-shm")
+                if fileManager.fileExists(atPath: shmURL.path) {
+                    try fileManager.removeItem(at: shmURL)
+                }
+            }
+            
+            // 复制备份文件到存储位置
+            try fileManager.copyItem(at: backupURL, to: storeURL)
+            
+            // 复制相关的辅助文件（如果存在）
+            let backupDir = backupURL.deletingLastPathComponent()
+            let backupNameWithoutExt = backupURL.deletingPathExtension().lastPathComponent
+            
+            let storeDir = storeURL.deletingLastPathComponent()
+            let storeNameWithoutExt = storeURL.deletingPathExtension().lastPathComponent
+            
+            // 复制WAL文件
+            let backupWalURL = backupDir.appendingPathComponent("\(backupNameWithoutExt)-wal")
+            let storeWalURL = storeDir.appendingPathComponent("\(storeNameWithoutExt)-wal")
+            if fileManager.fileExists(atPath: backupWalURL.path) {
+                try fileManager.copyItem(at: backupWalURL, to: storeWalURL)
+            }
+            
+            // 复制SHM文件
+            let backupShmURL = backupDir.appendingPathComponent("\(backupNameWithoutExt)-shm")
+            let storeShmURL = storeDir.appendingPathComponent("\(storeNameWithoutExt)-shm")
+            if fileManager.fileExists(atPath: backupShmURL.path) {
+                try fileManager.copyItem(at: backupShmURL, to: storeShmURL)
+            }
+            
+            // 重新加载存储
+            await dataStack.reloadPersistentStores()
+        } catch {
+            throw CoreDataError.backupRestoreFailed(description: "恢复过程中发生错误: \(error.localizedDescription)")
+        }
+    }
+
+    /// 获取缓存统计信息
+    /// - Returns: 缓存统计信息
+    public func getStatistics() async throws -> CacheStatistics {
+        // 由于当前类没有明确的缓存跟踪机制
+        // 我们返回一个默认的统计信息
+        // 在实际实现中，应该根据您的缓存机制返回真实数据
+        return CacheStatistics(hits: 0, misses: 0)
+    }
+
+    /// 清理过期的缓存
+    /// 用于定期清理已过期的缓存项，提高性能和减少内存使用
+    public func cleanupExpiredCache() async {
+        // 由于当前没有内置的缓存系统，这个方法是一个占位符
+        // 在实际实现中，应该清理任何实现的缓存机制
+        
+        // 清理旧备份，只保留最新的5个
+        cleanupBackups(keepLatest: 5)
+    }
 }
 
 // MARK: - ResourceProviding 协议扩展，提供同步访问方法
