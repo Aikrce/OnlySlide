@@ -139,11 +139,11 @@ public final class CoreDataErrorManager: @unchecked Sendable {
     /// - Parameters:
     ///   - strategy: 错误处理策略
     ///   - errorType: 错误类型
-    ///   - context: 错误上下文描述
+    ///   - context: 错误上下文
     public func registerStrategy(_ strategy: ErrorHandlingStrategy, for errorType: String, context: String? = nil) {
         let key = createStrategyKey(errorType: errorType, context: context)
         errorStrategies[key] = strategy
-        logger.debug("已注册错误处理策略: \(strategyToString(strategy)) 用于 \(key)")
+        logger.debug("已注册错误处理策略: \(self.strategyToString(strategy)) 用于 \(key)")
     }
     
     /// 将策略转换为字符串表示
@@ -208,7 +208,7 @@ public final class CoreDataErrorManager: @unchecked Sendable {
     ///   - error: 错误对象
     ///   - context: 上下文描述（例如"保存操作"）
     ///   - completion: 完成回调，传递是否成功恢复
-    public func handleError(_ error: Error, context: String, completion: @escaping (Bool) -> Void) {
+    public func handleError(_ error: Error, context: String, completion: @escaping @Sendable (Bool) -> Void) async {
         // 将错误转换为CoreDataError类型
         let coreDataError: CoreDataError
         if let cde = error as? CoreDataError {
@@ -225,30 +225,22 @@ public final class CoreDataErrorManager: @unchecked Sendable {
         // 尝试获取恢复策略
         if let strategy = recoveryProvider.strategyFor(error: coreDataError) {
             // 执行恢复策略
-            strategy.execute { [self] success in
-                if success {
-                    self.logger.info("成功恢复 \(context) 的错误")
-                } else {
-                    self.logger.error("无法恢复 \(context) 的错误")
+            let success = await withCheckedContinuation { continuation in
+                Task {
+                    await strategy.execute { success in
+                        if success {
+                            self.logger.info("成功恢复 \(context) 的错误")
+                        } else {
+                            self.logger.error("无法恢复 \(context) 的错误")
+                        }
+                        continuation.resume(returning: success)
+                    }
                 }
-                completion(success)
             }
+            completion(success)
         } else {
             logger.warning("没有找到 \(context) 错误的恢复策略")
             completion(false)
-        }
-    }
-    
-    /// 异步处理Core Data错误
-    /// - Parameters:
-    ///   - error: 错误对象
-    ///   - context: 上下文描述
-    /// - Returns: 是否成功恢复
-    public func handleError(_ error: Error, context: String) async -> Bool {
-        return await withCheckedContinuation { continuation in
-            handleError(error, context: context) { success in
-                continuation.resume(returning: success)
-            }
         }
     }
     

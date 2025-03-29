@@ -3,7 +3,7 @@ import Foundation
 import os
 
 /// Core Data 模块内的错误
-public enum CoreDataError: Error, LocalizedError {
+public enum CoreDataError: Error, LocalizedError, Sendable {
     /// 存储错误
     case storeNotFound(String)
     case persistentStoreCoordinatorError(Error)
@@ -15,7 +15,7 @@ public enum CoreDataError: Error, LocalizedError {
     case syncSetupError(String)
     case syncStartError(String)
     case syncStopError(String)
-    case syncProcessError(String)
+    case syncProcessError(Error)
     case invalidSyncState(String)
     case networkUnavailable
     
@@ -24,7 +24,7 @@ public enum CoreDataError: Error, LocalizedError {
     case invalidData(String)
     
     /// 备份和恢复错误
-    case backupFailed(Error)
+    case backupFailed(String)
     case backupDirectoryError(String)
     case invalidBackupFile
     case backupRestoreFailed(String)
@@ -32,14 +32,14 @@ public enum CoreDataError: Error, LocalizedError {
     /// 迁移错误
     case modelNotFound(String)
     case migrationFailed(String)
-    case saveFailed(String)
+    case saveFailed(Error)
     case updateFailed(String)
     case deleteFailed(String)
     case mergeConflict(String)
     case validationFailed(String)
     case invalidManagedObject(String)
     case notFound(String)
-    case fetchFailed(String)
+    case fetchFailed(Error)
     
     /// 通用错误
     case unknown(Error)
@@ -66,8 +66,8 @@ public enum CoreDataError: Error, LocalizedError {
             return "Sync start error: \(message)"
         case .syncStopError(let message):
             return "Sync stop error: \(message)"
-        case .syncProcessError(let message):
-            return "Sync process error: \(message)"
+        case .syncProcessError(let error):
+            return "Sync process error: \(error.localizedDescription)"
         case .invalidSyncState(let message):
             return "Invalid sync state: \(message)"
         case .networkUnavailable:
@@ -80,8 +80,8 @@ public enum CoreDataError: Error, LocalizedError {
             return "Invalid data: \(message)"
             
         /// 备份和恢复错误
-        case .backupFailed(let error):
-            return "Backup failed: \(error.localizedDescription)"
+        case .backupFailed(let reason):
+            return "Backup failed: \(reason)"
         case .backupDirectoryError(let message):
             return "Backup directory error: \(message)"
         case .invalidBackupFile:
@@ -94,8 +94,8 @@ public enum CoreDataError: Error, LocalizedError {
             return "Model not found: \(message)"
         case .migrationFailed(let message):
             return "Migration failed: \(message)"
-        case .saveFailed(let reason):
-            return "Save failed: \(reason)"
+        case .saveFailed(let error):
+            return "Save failed: \(error.localizedDescription)"
         case .updateFailed(let reason):
             return "Update failed: \(reason)"
         case .deleteFailed(let reason):
@@ -108,8 +108,8 @@ public enum CoreDataError: Error, LocalizedError {
             return "Invalid managed object: \(reason)"
         case .notFound(let message):
             return "Not found: \(message)"
-        case .fetchFailed(let message):
-            return "Fetch failed: \(message)"
+        case .fetchFailed(let error):
+            return "Fetch failed: \(error.localizedDescription)"
             
         /// 通用错误
         case .unknown(let error):
@@ -134,8 +134,6 @@ public enum CoreDataError: Error, LocalizedError {
                 return .validationFailed(error.localizedDescription)
             case NSManagedObjectConstraintValidationError:
                 return .validationFailed("约束验证失败: \(error.localizedDescription)")
-            case NSPersistentStoreError:
-                return .persistentStoreCoordinatorError(error)
             case NSManagedObjectContextLockingError:
                 return .managedObjectContextError(error)
             case NSPersistentStoreCoordinatorLockingError:
@@ -159,7 +157,7 @@ public enum CoreDataError: Error, LocalizedError {
             case NSPersistentStoreOperationError:
                 return .persistentStoreCoordinatorError(error)
             case NSPersistentStoreSaveError:
-                return .saveFailed(error.localizedDescription)
+                return .saveFailed(error)
             case NSCoreDataError + 1:
                 return .migrationFailed("迁移错误: \(error.localizedDescription)")
             default:

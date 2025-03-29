@@ -1,159 +1,402 @@
 import Foundation
 import Combine
 
-/// 负责报告迁移进度
-@MainActor public final class MigrationProgressReporter: MigrationProgressReporterProtocol, ObservableObject {
-    // MARK: - Properties
+// MARK: - Migration Phase Enum
+
+/// 迁移阶段
+public enum MigrationPhase: String, Sendable {
+    /// 准备中
+    case preparing
     
-    /// 当前状态
-    @Published public private(set) var state: EnhancedMigrationState = .idle
+    /// 备份中
+    case backingUp
     
-    /// 当前进度
-    @Published public private(set) var progress: MigrationProgress?
+    /// 迁移中
+    case migrating
     
-    /// 当前错误
-    @Published public private(set) var error: MigrationError?
+    /// 恢复中
+    case recovering
     
-    /// 是否正在迁移
-    public var isInProgress: Bool {
-        switch state {
-        case .idle, .completed, .failed:
-            return false
+    /// 完成
+    case completed
+    
+    /// 失败
+    case failed
+}
+
+// MARK: - Enhanced Migration State Enum
+
+/// 增强型迁移状态
+public enum EnhancedMigrationState: Sendable, Equatable {
+    /// 空闲
+    case idle
+    
+    /// 正在准备
+    case preparing
+    
+    /// 正在备份
+    case backingUp
+    
+    /// 正在迁移
+    case inProgress
+    
+    /// 正在完成
+    case finishing
+    
+    /// 完成
+    case completed
+    
+    /// 失败
+    case failed(Error)
+    
+    /// 恢复中
+    case recovering
+    
+    public static func == (lhs: EnhancedMigrationState, rhs: EnhancedMigrationState) -> Bool {
+        switch (lhs, rhs) {
+        case (.idle, .idle),
+             (.preparing, .preparing),
+             (.backingUp, .backingUp),
+             (.inProgress, .inProgress),
+             (.finishing, .finishing),
+             (.completed, .completed),
+             (.recovering, .recovering):
+            return true
+        case (.failed(let lhsError), .failed(let rhsError)):
+            return lhsError.localizedDescription == rhsError.localizedDescription
         default:
-            return true
+            return false
         }
     }
+}
+
+// MARK: - Migration Progress Struct
+
+/// 迁移进度
+public struct MigrationProgress: Sendable, Equatable {
+    /// 迁移阶段
+    public let phase: MigrationPhase
     
-    /// 是否已完成
-    public var isCompleted: Bool {
-        if case .completed = state {
-            return true
-        }
-        return false
-    }
-    
-    /// 是否失败
-    public var isFailed: Bool {
-        if case .failed = state {
-            return true
-        }
-        return false
-    }
+    /// 进度值（0.0-1.0）
+    public let value: Double
     
     /// 进度百分比
-    public var progressPercentage: Double {
-        return progress?.percentage ?? 0
+    public var percentage: Double {
+        return value * 100.0
     }
     
     /// 进度分数
-    public var progressFraction: Double {
-        return progress?.fraction ?? 0
+    public var fraction: Double {
+        return value
     }
     
-    /// 当前步骤描述
-    public var stepDescription: String {
-        return progress?.description ?? "准备迁移..."
+    /// 当前步骤
+    public var currentStep: Int {
+        return Int(value * 100)
     }
     
-    // MARK: - Initialization
+    /// 总步骤数
+    public var totalSteps: Int {
+        return 100
+    }
     
-    /// 初始化进度报告器
+    /// 描述信息
+    public var description: String {
+        switch phase {
+        case .preparing:
+            return "准备迁移..."
+        case .backingUp:
+            return "创建备份..."
+        case .migrating:
+            return "正在迁移数据模型..."
+        case .recovering:
+            return "恢复备份..."
+        case .completed:
+            return "迁移已完成"
+        case .failed:
+            return "迁移失败"
+        }
+    }
+    
+    /// 初始化进度
+    public init(phase: MigrationPhase, value: Double) {
+        self.phase = phase
+        self.value = max(0, min(1, value)) // 确保在0-1范围内
+    }
+}
+
+/// 迁移进度报告器协议
+@MainActor
+public protocol MigrationProgressReporterProtocol: Sendable {
+    /// 当前状态
+    var state: EnhancedMigrationState { get async }
+    
+    /// 当前进度
+    var progress: MigrationProgress { get async }
+    
+    /// 当前错误
+    var error: Error? { get async }
+    
+    /// 重置报告器
+    func reset() async
+    
+    /// 报告迁移准备开始
+    func reportPreparing() async
+    
+    /// 报告备份开始
+    func reportBackingUp() async
+    
+    /// 报告迁移开始
+    func reportMigrating(steps: Int) async
+    
+    /// 报告迁移步骤进度
+    func reportMigrationStepProgress(step: Int, of totalSteps: Int, progress: Double) async
+    
+    /// 报告恢复开始
+    func reportRecovering() async
+    
+    /// 报告迁移完成
+    func reportCompleted(entities: Int) async
+    
+    /// 报告迁移失败
+    func reportFailed(error: Error) async
+}
+
+/// 迁移进度报告器协议（特定于CoreDataMigrationManager使用）
+@MainActor
+public protocol CDMigrationProgressReporterProtocol: Sendable {
+    /// 当前状态
+    var state: EnhancedMigrationState { get async }
+    
+    /// 当前进度
+    var progress: CDMigrationProgress { get async }
+    
+    /// 当前错误
+    var error: Error? { get async }
+    
+    /// CD特定的进度对象
+    var cdProgress: CDMigrationProgress { get async }
+    
+    /// 重置报告器
+    func reset() async
+    
+    /// 报告迁移准备开始
+    func reportPreparing() async
+    
+    /// 报告备份开始
+    func reportBackingUp() async
+    
+    /// 报告迁移开始
+    func reportMigrating(steps: Int) async
+    
+    /// 报告迁移步骤进度
+    func reportMigrationStepProgress(step: Int, of totalSteps: Int, progress: Double) async
+    
+    /// 报告恢复开始
+    func reportRecovering() async
+    
+    /// 报告迁移完成
+    func reportCompleted(entities: Int) async
+    
+    /// 报告迁移失败
+    func reportFailed(error: Error) async
+}
+
+/// 迁移进度报告器
+@MainActor
+public final class MigrationProgressReporter: MigrationProgressReporterProtocol, CDMigrationProgressReporterProtocol, EMProgressReporterProtocol {
+    /// 状态管理Actor
+    private actor StateActor {
+        var stateValue = EnhancedMigrationState.idle
+        var progressValue = MigrationProgress(phase: .preparing, value: 0)
+        var errorValue: Error? = nil
+        
+        func setState(_ state: EnhancedMigrationState) {
+            stateValue = state
+        }
+        
+        func setProgress(_ progress: MigrationProgress) {
+            progressValue = progress
+        }
+        
+        func setError(_ error: Error?) {
+            errorValue = error
+        }
+        
+        func getState() -> EnhancedMigrationState {
+            return stateValue
+        }
+        
+        func getProgress() -> MigrationProgress {
+            return progressValue
+        }
+        
+        func getError() -> Error? {
+            return errorValue
+        }
+        
+        func reset() {
+            stateValue = .idle
+            progressValue = MigrationProgress(phase: .preparing, value: 0)
+            errorValue = nil
+        }
+    }
+    
+    /// 状态Actor实例
+    private let stateActor = StateActor()
+    
+    /// 初始化迁移进度报告器
     public init() {}
     
-    // MARK: - Public Methods
+    /// 当前状态
+    nonisolated public var state: EnhancedMigrationState {
+        get {
+            Task {
+                return await stateActor.getState()
+            }.value
+        }
+    }
+    
+    /// 当前进度
+    nonisolated public var progress: MigrationProgress {
+        get {
+            Task {
+                return await stateActor.getProgress()
+            }.value
+        }
+    }
+    
+    /// 获取CD特定的进度
+    public var cdProgress: CDMigrationProgress {
+        get {
+            Task {
+                let p = await stateActor.getProgress()
+                return CDMigrationProgress(phase: p.phase, value: p.value)
+            }.value
+        }
+    }
+    
+    /// 当前错误
+    nonisolated public var error: Error? {
+        get {
+            Task {
+                return await stateActor.getError()
+            }.value
+        }
+    }
+    
+    /// 重置报告器
+    public func reset() {
+        Task { 
+            await stateActor.reset() 
+        }
+    }
     
     /// 更新状态
-    /// - Parameter state: 新状态
-    public func updateState(_ state: EnhancedMigrationState) {
-        self.state = state
+    private func updateState(_ state: EnhancedMigrationState) async {
+        await stateActor.setState(state)
     }
     
     /// 更新进度
-    /// - Parameter progress: 新进度值 (0.0 - 1.0)
-    public func updateProgress(_ progress: Float) {
-        let newProgress = MigrationProgress(fraction: Double(progress), description: "正在迁移...")
-        self.progress = newProgress
-        
-        // 如果不是在迁移状态，则更新状态
-        if case .inProgress = self.state {} else {
-            self.state = .inProgress
-        }
+    private func updateProgress(_ progress: MigrationProgress) async {
+        await stateActor.setProgress(progress)
     }
     
-    /// 更新进度
-    /// - Parameter progress: 新进度对象
-    public func updateProgress(_ progress: MigrationProgress) {
-        self.progress = progress
-        
-        // 如果不是在迁移状态，则更新状态
-        if case .inProgress = self.state {} else {
-            self.state = .inProgress
-        }
+    /// 报告迁移准备开始
+    public func reportPreparing() async {
+        await updateState(.preparing)
+        await updateProgress(MigrationProgress(phase: .preparing, value: 0))
     }
     
     /// 报告备份开始
-    public func reportBackupStarted() {
-        self.state = .backingUp
-    }
-    
-    /// 报告恢复开始
-    public func reportRestorationStarted() {
-        self.state = .recovering
-    }
-    
-    /// 报告准备开始
-    public func reportPreparationStarted() {
-        self.state = .preparing
+    public func reportBackingUp() async {
+        await updateState(.backingUp)
+        await updateProgress(MigrationProgress(phase: .backingUp, value: 0))
     }
     
     /// 报告迁移开始
-    public func reportMigrationStarted() {
-        self.state = .inProgress
-        updateProgress(0.0)
+    public func reportMigrating(steps: Int) async {
+        await updateState(.inProgress)
+        await updateProgress(MigrationProgress(phase: .migrating, value: 0))
+    }
+    
+    /// 报告迁移步骤进度
+    public func reportMigrationStepProgress(step: Int, of totalSteps: Int, progress: Double) async {
+        let overallProgress = (Double(step - 1) + progress) / Double(totalSteps)
+        await updateProgress(MigrationProgress(phase: .migrating, value: overallProgress))
+    }
+    
+    /// 报告恢复开始
+    public func reportRecovering() async {
+        await updateState(.recovering)
+        await updateProgress(MigrationProgress(phase: .recovering, value: 0))
     }
     
     /// 报告迁移完成
-    /// - Parameter result: 迁移结果
-    public func reportMigrationCompleted(result: MigrationResult) {
-        updateProgress(1.0)
-        self.state = .completed
+    public func reportCompleted(entities: Int) async {
+        await updateState(.completed)
+        await updateProgress(MigrationProgress(phase: .completed, value: 1.0))
     }
     
     /// 报告迁移失败
-    /// - Parameter error: 迁移错误
-    public func reportMigrationFailed(error: MigrationError) {
-        self.error = error
-        self.state = .failed(error)
+    public func reportFailed(error: Error) async {
+        await updateState(.failed(error))
+        await updateProgress(MigrationProgress(phase: .failed, value: 0))
+        await stateActor.setError(error)
+    }
+    
+    // MARK: - EMProgressReporterProtocol
+    
+    /// 报告准备开始
+    public func reportPreparationStarted() async {
+        await updateState(.preparing)
+        await updateProgress(MigrationProgress(phase: .preparing, value: 0))
+    }
+    
+    /// 报告备份开始
+    public func reportBackupStarted() async {
+        await updateState(.backingUp)
+        await updateProgress(MigrationProgress(phase: .backingUp, value: 0))
+    }
+    
+    /// 报告迁移开始
+    public func reportMigrationStarted() async {
+        await updateState(.inProgress)
+        await updateProgress(MigrationProgress(phase: .migrating, value: 0))
+    }
+    
+    /// 更新进度
+    public func updateProgress(_ progress: Float) async {
+        await reportMigrationStepProgress(step: 1, of: 1, progress: Double(progress))
+    }
+    
+    /// 报告迁移完成
+    public func reportMigrationCompleted(result: EnhancedMigrationResult) async {
+        await updateState(.completed)
+        await updateProgress(MigrationProgress(phase: .completed, value: 1.0))
     }
     
     /// 报告迁移失败
-    /// - Parameter error: 普通错误
-    public func reportMigrationFailed(error: Error) {
-        let migrationError = MigrationError.from(error)
-        reportMigrationFailed(error: migrationError)
+    public func reportMigrationFailed(error: Error) async {
+        await updateState(.failed(error))
+        await updateProgress(MigrationProgress(phase: .failed, value: 0))
+        await stateActor.setError(error)
+    }
+    
+    /// 报告恢复开始
+    public func reportRestorationStarted() async {
+        await updateState(.recovering)
+        await updateProgress(MigrationProgress(phase: .recovering, value: 0))
     }
     
     /// 报告恢复完成
-    /// - Parameter success: 是否成功
-    public func reportRestorationCompleted(success: Bool) {
+    public func reportRestorationCompleted(success: Bool) async {
+        // 根据恢复结果设置状态
         if success {
-            self.state = .completed
+            await updateState(.completed)
+            await updateProgress(MigrationProgress(phase: .completed, value: 1.0))
         } else {
-            // 如果恢复失败，保持失败状态
-            if case .failed(let error) = self.state {
-                // 已经在失败状态，无需更改
-            } else {
-                // 创建一个通用恢复失败错误
-                let error = MigrationError.restorationFailed
-                self.state = .failed(error)
-            }
+            // 恢复失败，保持失败状态
         }
-    }
-    
-    /// 重置状态
-    public func reset() {
-        self.state = .idle
-        self.progress = nil
-        self.error = nil
     }
 } 

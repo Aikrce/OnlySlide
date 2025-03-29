@@ -1,4 +1,37 @@
 import Foundation
+import CoreData
+
+extension MigrationError {
+    /// 备份失败
+    static func backupFailed(description: String) -> MigrationError {
+        return .unknown(description: "备份失败: \(description)")
+    }
+    
+    /// 恢复失败
+    static func restorationFailed(description: String) -> MigrationError {
+        return .unknown(description: "恢复失败: \(description)")
+    }
+}
+
+/// 备份结果
+public enum ManagerBackupResult: Equatable, Sendable {
+    /// 成功
+    case success(backupURL: URL)
+    
+    /// 失败
+    case failure(error: Error)
+    
+    public static func == (lhs: ManagerBackupResult, rhs: ManagerBackupResult) -> Bool {
+        switch (lhs, rhs) {
+        case (.success(let lhsURL), .success(let rhsURL)):
+            return lhsURL == rhsURL
+        case (.failure, .failure):
+            return true
+        default:
+            return false
+        }
+    }
+}
 
 /// 负责管理 Core Data 存储的备份
 @MainActor public final class BackupManager: @unchecked Sendable {
@@ -42,7 +75,7 @@ import Foundation
     /// 创建备份
     /// - Parameter storeURL: 存储 URL
     /// - Returns: 备份结果
-    public func createBackup(for storeURL: URL) async throws -> BackupResult {
+    public func createBackup(for storeURL: URL) async throws -> ManagerBackupResult {
         // 检查配置
         if !configuration.shouldCreateBackup {
             throw MigrationError.backupFailed(description: "备份功能已禁用")
@@ -74,7 +107,7 @@ import Foundation
                 return .failure(error: error)
             }
             
-            return .success(info: backupInfo)
+            return .success(backupURL: backupURL)
         } catch {
             let migrationError = MigrationError.backupFailed(description: error.localizedDescription)
             return .failure(error: migrationError)
@@ -153,6 +186,14 @@ import Foundation
     /// 清理旧备份
     public func cleanupOldBackups() {
         resourceManager.cleanupBackups(keepLatest: configuration.maxBackupsToKeep)
+    }
+    
+    /// 清理旧备份，保留最新的n个
+    /// - Parameters:
+    ///   - storeURL: 存储URL
+    ///   - keepLatest: 保留最新备份的数量
+    public func cleanupOldBackups(for storeURL: URL, keepLatest: Int) async throws {
+        resourceManager.cleanupBackups(keepLatest: keepLatest)
     }
     
     // MARK: - Private Methods

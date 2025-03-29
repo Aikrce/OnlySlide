@@ -16,8 +16,9 @@ public extension CoreDataManager {
     var migrationProgressPublisher: AnyPublisher<Double, Never> {
         return migrationManager.$state
             .compactMap { state -> Double? in
-                if case .inProgress(let progress) = state {
-                    return progress.fraction
+                if case .migrating = state {
+                    // 使用当前进度，避免使用不存在的成员
+                    return migrationManager.getCurrentProgress().value
                 }
                 return nil
             }
@@ -29,9 +30,9 @@ public extension CoreDataManager {
         return migrationManager.$state
             .map { state -> MigrationStateWrapper in
                 switch state {
-                case .notStarted, .preparing, .backingUp, .restoring:
+                case .notStarted, .preparing, .backingUp, .recovering:
                     return .preparing
-                case .inProgress:
+                case .migrating:
                     return .migrating
                 case .completed:
                     return .completed
@@ -69,8 +70,9 @@ public extension CoreDataManager {
     /// 执行迁移
     /// - Parameter storeURL: 存储URL
     /// - Returns: 是否执行了迁移
-    func performMigration(at storeURL: URL) async throws {
+    func performMigration(at storeURL: URL) async throws -> Bool {
         try await migrationManager.performMigration(at: storeURL)
+        return true
     }
     
     /// 检查是否需要迁移

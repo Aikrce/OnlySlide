@@ -2,7 +2,7 @@ import Foundation
 import CoreData
 
 /// 表示模型版本的结构体
-public struct ModelVersion: Comparable, Equatable, CustomStringConvertible {
+public struct ModelVersion: Comparable, Equatable, CustomStringConvertible, Sendable, Hashable {
     /// 主版本号
     public let major: Int
     /// 次版本号
@@ -38,9 +38,13 @@ public struct ModelVersion: Comparable, Equatable, CustomStringConvertible {
         
         // 确保格式正确
         guard components.count >= 2,
-              components[0].hasPrefix("V"),
-              let majorString = components[0].dropFirst().description,
-              let major = Int(majorString) else {
+              components[0].hasPrefix("V") else {
+            return nil
+        }
+        
+        // 获取主版本号字符串并转换为整数
+        let majorString = components[0].dropFirst().description
+        guard let major = Int(majorString) else {
             return nil
         }
         
@@ -212,62 +216,17 @@ public struct ModelVersion: Comparable, Equatable, CustomStringConvertible {
         return lhs.patch < rhs.patch
     }
     
-    /// 比较两个版本号
-    public static func < (lhs: ModelVersion, rhs: ModelVersion) -> Bool {
-        if lhs.major != rhs.major {
-            return lhs.major < rhs.major
-        }
-        
-        if lhs.minor != rhs.minor {
-            return lhs.minor < rhs.minor
-        }
-        
-        return lhs.patch < rhs.patch
-    }
-    
     /// 判断两个版本号是否相等
     public static func == (lhs: ModelVersion, rhs: ModelVersion) -> Bool {
         return lhs.major == rhs.major && lhs.minor == rhs.minor && lhs.patch == rhs.patch
     }
-}
-
-/// 迁移进度
-public struct MigrationProgress {
-    /// 完成百分比
-    public let fraction: Double
     
-    /// 当前步骤
-    public let currentStep: Int
+    // MARK: - Hashable
     
-    /// 总步骤数
-    public let totalSteps: Int
-    
-    /// 描述信息
-    public var description: String {
-        return "迁移进度: \(Int(fraction * 100))% (第\(currentStep)步，共\(totalSteps)步)"
-    }
-    
-    /// 创建进度报告
-    /// - Parameters:
-    ///   - current: 当前步骤
-    ///   - total: 总步骤数
-    /// - Returns: 进度报告
-    public static func progress(current: Int, total: Int) -> MigrationProgress {
-        let fraction = total > 0 ? Double(current) / Double(total) : 0.0
-        return MigrationProgress(fraction: fraction, currentStep: current, totalSteps: total)
-    }
-    
-    /// 创建开始进度报告
-    /// - Parameter total: 总步骤数
-    /// - Returns: 开始进度报告
-    public static func start(total: Int) -> MigrationProgress {
-        return MigrationProgress(fraction: 0.0, currentStep: 0, totalSteps: total)
-    }
-    
-    /// 创建完成进度报告
-    /// - Parameter total: 总步骤数
-    /// - Returns: 完成进度报告
-    public static func complete(total: Int) -> MigrationProgress {
-        return MigrationProgress(fraction: 1.0, currentStep: total, totalSteps: total)
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(major)
+        hasher.combine(minor)
+        hasher.combine(patch)
+        hasher.combine(identifier)
     }
 }

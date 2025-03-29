@@ -1,8 +1,10 @@
 import Foundation
 import CoreData
 
+// MARK: - Migration Executor Implementation
+
 /// 负责执行迁移步骤
-@MainActor public final class MigrationExecutor: @unchecked Sendable {
+@MainActor public final class MigrationExecutor: MigrationExecutorProtocol, @unchecked Sendable {
     // MARK: - Properties
     
     /// 负责创建迁移计划的规划器
@@ -65,12 +67,30 @@ import CoreData
     /// 执行迁移计划
     /// - Parameters:
     ///   - plan: 迁移计划
+    ///   - progressHandler: 进度处理器
+    public func executePlan(
+        _ plan: MigrationPlan,
+        progressHandler: @escaping @Sendable (Float) -> Void
+    ) async throws {
+        let defaultOptions = ExecutorMigrationOptions(
+            shouldCreateBackup: true,
+            shouldRestoreFromBackupOnFailure: true,
+            shouldRemoveOldBackups: true,
+            maxBackupsToKeep: 5,
+            mode: .automatic
+        )
+        try await executePlan(plan, options: defaultOptions, progressHandler: progressHandler)
+    }
+    
+    /// 执行迁移计划
+    /// - Parameters:
+    ///   - plan: 迁移计划
     ///   - options: 迁移选项
     ///   - progressHandler: 进度处理器
     public func executePlan(
         _ plan: MigrationPlan,
-        options: MigrationOptions,
-        progressHandler: @escaping (Float) -> Void
+        options: ExecutorMigrationOptions,
+        progressHandler: @escaping @Sendable (Float) -> Void
     ) async throws {
         // 如果没有步骤，什么都不做
         if plan.steps.isEmpty {
@@ -101,15 +121,6 @@ import CoreData
         
         // 遍历迁移步骤，逐步迁移
         for (stepIndex, step) in plan.steps.enumerated() {
-            // 创建本步骤的进度
-            let progress = MigrationProgress(
-                currentStep: step.index,
-                totalSteps: totalSteps,
-                description: "正在迁移数据模型 (\(step.index)/\(totalSteps)) 从 \(step.sourceVersion.description) 到 \(step.destinationVersion.description)",
-                sourceVersion: plan.sourceVersion,
-                destinationVersion: plan.destinationVersion
-            )
-            
             // 更新进度 - 转换为 Float 进度值 (0.0 - 1.0)
             let progressValue = Float(stepIndex) / Float(totalSteps)
             progressHandler(progressValue)
@@ -125,4 +136,57 @@ import CoreData
         try FileManager.default.removeItem(at: plan.storeURL)
         try FileManager.default.copyItem(at: tempStoreURL, to: plan.storeURL)
     }
+}
+
+// MARK: - Migration Options Definition
+
+/// 迁移配置结构体
+public struct ExecutorMigrationOptions: Sendable, Equatable {
+    /// 是否创建备份
+    public let shouldCreateBackup: Bool
+    
+    /// 是否在失败时从备份恢复
+    public let shouldRestoreFromBackupOnFailure: Bool
+    
+    /// 是否删除旧备份
+    public let shouldRemoveOldBackups: Bool
+    
+    /// 要保留的最大备份数量
+    public let maxBackupsToKeep: Int
+    
+    /// 迁移模式
+    public let mode: MigrationMode
+    
+    /// 初始化迁移配置
+    public init(
+        shouldCreateBackup: Bool = true,
+        shouldRestoreFromBackupOnFailure: Bool = true,
+        shouldRemoveOldBackups: Bool = true,
+        maxBackupsToKeep: Int = 5,
+        mode: MigrationMode = .automatic
+    ) {
+        self.shouldCreateBackup = shouldCreateBackup
+        self.shouldRestoreFromBackupOnFailure = shouldRestoreFromBackupOnFailure
+        self.shouldRemoveOldBackups = shouldRemoveOldBackups
+        self.maxBackupsToKeep = maxBackupsToKeep
+        self.mode = mode
+    }
+    
+    /// 默认配置
+    public static let `default` = ExecutorMigrationOptions()
+}
+
+/// 迁移模式
+public enum MigrationMode: Sendable, Equatable {
+    /// 自动迁移（推断映射模型）
+    case automatic
+    
+    /// 使用自定义映射模型
+    case customMapping
+    
+    /// 逐步迁移（一次只迁移一个版本）
+    case stepByStep
+    
+    /// 使用轻量级迁移，由 Core Data 自动处理
+    case lightweight
 } 

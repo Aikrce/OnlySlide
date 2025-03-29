@@ -1,8 +1,10 @@
 import Foundation
 import CoreData
 
+// MARK: - Migration Planner Implementation
+
 /// 负责规划迁移过程
-@MainActor public final class MigrationPlanner: @unchecked Sendable {
+@MainActor public final class MigrationPlanner: MigrationPlannerProtocol, @unchecked Sendable {
     // MARK: - Properties
     
     /// 资源管理器
@@ -85,6 +87,16 @@ import CoreData
             steps: steps,
             storeURL: storeURL
         )
+    }
+    
+    /// 创建迁移计划
+    /// - Parameters:
+    ///   - storeURL: 存储 URL
+    ///   - options: 迁移选项
+    /// - Returns: 迁移计划
+    public func createMigrationPlan(for storeURL: URL, options: ExecutorMigrationOptions) async throws -> MigrationPlan {
+        // 调用原有的方法，忽略options参数，因为当前版本不使用此参数
+        return try await createMigrationPlan(for: storeURL)
     }
     
     /// 获取迁移步骤的源模型

@@ -36,9 +36,8 @@
 
 ### 7. ConcurrencySafety.swift
 
-- 修复了 `CoreDataContextAccessor` 结构体中的 `perform` 方法，添加 `Sendable` 泛型约束
-- 为 `performAsync` 方法添加了 `Sendable` 泛型约束
-- 修复了 `loadPersistentStores` 方法中的 `self` 捕获问题，显式引用 `self`
+- 修复了 `CoreDataContextAccessor` 结构体中的 `perform` 方法，添加 `@escaping` 和 `Sendable` 泛型约束
+- 为 `performBackgroundTask` 方法添加了 `@Sendable` 约束和泛型参数的 `Sendable` 约束
 - 删除了对 `Thread.isMainThread` 的使用，改用 `MainActor.run` 确保主线程执行
 
 ### 8. CoreDataError.swift
@@ -51,85 +50,102 @@
 ### 9. CoreDataErrorManager.swift
 
 - 添加了 `strategyToString` 方法以正确打印策略信息
-- 修复了 `getSeverity` 和 `applyDefaultRecoveryStrategy` 方法中的 switch 语句完整性
-- 在闭包中显式使用 `[self]` 解决捕获语义问题
+- 修复了 `getSeverity` 方法中的 switch 语句完整性，确保所有枚举成员都被处理
+- 明确地将 `ErrorHandlingStrategy` 标记为 `Sendable`
 
 ### 10. EnhancedErrorHandling.swift
 
 - 添加了 `@preconcurrency` 到 `import Combine` 语句
 - 修改了 `handle` 方法为 `mutating` 方法
 - 使 `ErrorConverter` 和 `ErrorStrategyResolver` 结构体显式地符合 `Sendable` 协议
-- 添加了 `getStrategy` 方法的定义
 - 修改了 `ErrorConverter` 构造函数为 `public`
+- 在 `ErrorStrategyResolver` 中将所有方法标记为 `public`，并适当添加 `mutating` 修饰符
 
 ### 11. CoreDataRecoveryStrategies.swift
 
 - 修改 `RecoveryStrategy` 协议以符合 `Sendable` 协议
-- 为 `ErrorRecoveryStrategy` 协议添加 `@preconcurrency` 属性
-- 为恢复策略添加了 `@MainActor` 标记，确保可以安全地访问 MainActor 隔离的属性
-- 将 `ErrorRecoveryStrategy` 协议的 `completion` 参数标记为 `@Sendable`
-
-### 12. CacheMonitor.swift 和 ExpiringCache.swift
-
-- 重构了 Timer 处理方式，移除了对 Timer 实例的直接引用，使用布尔标志替代
-- 添加了适当的停止和启动计时器方法
-- 修复了 deinit 中调用 actor 隔离方法的问题
+- 为 `ErrorRecoveryStrategy` 协议添加 `Sendable` 约束
+- 为 `ValidatorRecoveryStrategy` 类添加 `@unchecked Sendable` 注解确保并发安全
+- 修改 `CoreDataRecoveryExecutor` 类的 `strategies` 属性为 `[any RecoveryStrategy & Sendable]` 类型
 
 ## 仍存在的问题
 
-尽管我们已经解决了许多问题，但仍有以下问题需要解决：
+### 高优先级问题（阻碍构建）
 
-1. 依赖注入系统问题：
-   - `DependencyRegistry` 类的 `@MainActor` 隔离与 `Provider` 协议的兼容性问题
-   - 工厂类的重复声明和缺失的协议实现
+1. CoreDataStack 关键问题:
+   - `storeDescription.options` 是只读属性，不能直接赋值
+   - `NSMergeByPropertyObjectTrumpMergePolicy` 在并发环境中不安全
+   - `objectCache.hitCount` 和 `objectCache.missCount` 不存在
+   - `persistentContainer.managedObjectModel` 被错误地作为可选类型使用
+   - `CoreDataIndexConfiguration.shared` 不存在
 
-2. CoreDataStack 相关问题：
-   - `storeDescription.options` 属性不可写的问题
-   - `NSMergeByPropertyObjectTrumpMergePolicy` 在并发环境中的使用问题
-   - `hitCount` 和 `missCount` 缺失
-
-3. CoreDataResourceManager 问题：
+2. CoreDataResourceManager 问题:
+   - 属性 `dataStack.persistentStoreOptions` 和 `dataStack.persistentContainer` 的访问需要 `await`
    - `backgroundContext` 成员不存在
-   - `backupFailed` 参数类型不匹配 (`NSError` vs `String`)
+   - `CoreDataError.backupFailed` 期望 `String` 类型参数，但收到了 `NSError` 或 `any Error`
 
-4. 迁移系统问题：
-   - `MigrationProgressReporterProtocol` 定义冲突
-   - `MigrationResult` 状态不匹配
-   - 许多成员函数缺失或方法签名不匹配
+3. DependencyProvider 问题:
+   - `registerFactories()` 方法重复声明
+   - `@MainActor` 隔离的方法与非隔离的协议要求不兼容
+   - 在非 `@MainActor` 上下文中访问 `@MainActor` 隔离的属性
+   - 缺少必要的参数或提供了错误的参数类型
 
-5. 其他问题：
-   - Swift 闭包捕获 `self` 的显式引用问题
-   - 异步函数调用缺少 `await` 关键字
-   - 多个类型的协议一致性缺失
+4. EnhancedSyncManager 问题:
+   - 缺乏 `await` 关键字调用异步访问 actor 隔离的属性
+   - 在非隔离上下文中访问 actor 隔离的属性
+   - 使用了不可用的 `NSPersistentStore()` 初始化器
+   - 扩展中包含存储属性
+
+### 中优先级问题（影响功能）
+
+1. 迁移系统问题:
+   - `MigrationProgressReporterProtocol` 名称冲突
+   - 缺少 `await` 关键字调用异步方法，如 `sourceModelVersion`, `destinationModelVersion` 和 `migrationPath`
+
+2. 错误处理系统问题:
+   - `errorHandler` 被声明为 `let` 常量但需要使用 `mutating` 方法
+
+3. 警告和非关键问题:
+   - 未使用的变量声明，如 `storeName`, `storeDirectory`, `coordinator`
+   - 没有抛出错误的 `do` 块中的 `catch` 子句
+
+### 低优先级问题（优化和改进）
+
+1. 代码优化:
+   - 功能重复或功能混淆的组件
+   - 过度复杂的依赖注入系统
+   - 多个实现相同功能的类或结构体
 
 ## 推荐的下一步措施
 
-1. 整理依赖注入系统：
-   - 添加 `@preconcurrency` 到 `Provider` 协议或将其接口标记为 `async`
-   - 修复工厂类的重复声明和实现缺失
+1. 修复 CoreDataStack 关键问题:
+   - 使用 `NSPersistentStoreDescription.setOption(_:forKey:)` 替代直接设置 `options`
+   - 在初始化时创建 `NSMergePolicy` 实例而非使用共享变量
+   - 为 `ExpiringCache` 添加缺失的统计计数方法
+   - 修复 `managedObjectModel` 的可选绑定使用
 
-2. 修复 CoreDataStack：
-   - 替换 `options` 属性的设置方式
-   - 解决 `NSMergeByPropertyObjectTrumpMergePolicy` 的并发安全问题
-   - 添加缺失的缓存统计方法
+2. 解决 CoreDataResourceManager 问题:
+   - 添加 `await` 关键字访问 actor 隔离的属性
+   - 为 `CoreDataStack` 添加缺失的 `backgroundContext` 属性或使用替代方法
+   - 修复参数类型不匹配问题，使用正确的错误构造
 
-3. 整合迁移系统：
-   - 解决 `MigrationProgressReporterProtocol` 冲突
-   - 调整 `MigrationResult` 的用法
-   - 修复成员函数签名不匹配
+3. 整理依赖注入系统:
+   - 添加 `@preconcurrency` 到 `Provider` 协议或将其方法标记为 `async`
+   - 解决方法重复声明问题
+   - 修复参数不匹配和类型不兼容问题
 
-4. 增强并发安全性：
-   - 确保所有类型正确实现 `Sendable` 协议
-   - 检查并修复未处理的 MainActor 隔离问题
+4. 增强整体并发安全性:
    - 添加缺失的 `await` 关键字
+   - 确保正确使用 actor 隔离
+   - 解决非隔离上下文中访问隔离属性的问题
 
-5. 继续优化异步/并发代码：
-   - 减少不必要的 MainActor 隔离，提高并发性能
-   - 审查资源清理机制，确保正确管理内存
-   - 一致化错误处理系统
+5. 持续优化代码结构:
+   - 减少重复功能
+   - 统一错误处理和恢复系统
+   - 简化依赖注入和工厂模式的使用
 
 ## 结论
 
-我们已经成功解决了多个关键的并发安全问题，特别是在 EnhancedErrorHandling、CoreDataError 和 ConcurrencySafety 系统中。这些修复使代码更好地遵循 Swift 的并发模型，并提高了在并发环境下的安全性。
+我们已经成功修复了多个与并发安全相关的关键问题，特别是在错误处理系统中。这些修复使代码更好地遵循 Swift 的并发模型，并提高了在并发环境下的安全性。
 
-然而，项目仍然存在许多需要解决的问题，特别是在依赖注入和迁移系统方面。下一步工作将重点关注修复这些问题，并继续提高整个模块的并发安全性和健壮性。 
+然而，项目仍然存在多个需要解决的问题，特别是在 CoreDataStack、CoreDataResourceManager 和依赖注入系统方面。下一步工作将重点关注修复这些高优先级问题，以确保项目可以成功构建和运行。 

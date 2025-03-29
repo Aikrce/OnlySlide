@@ -58,9 +58,9 @@ import os
     
     deinit {
         // 在 deinit 中不再需要引用 Timer
-        if hasActiveCleanupTimer {
-            stopCleanupTimer()
-        }
+        // 注意：在 deinit 中不能调用 actor 隔离的方法，所以我们只更新标志
+        hasActiveCleanupTimer = false
+        // 任何需要停止的 Timer 应该在其他地方停止，例如在应用程序退出前
     }
     
     // MARK: - 缓存命中统计

@@ -21,8 +21,8 @@ extension NSManagedObject {
     }
     
     /// 根据ID获取对象
-    public static func find<T: NSManagedObject>(byID id: UUID, context: NSManagedObjectContext) -> T? where T: NSFetchRequestResult, T == Self {
-        let request = NSFetchRequest<T>(entityName: entityName)
+    public static func find(byID id: UUID, context: NSManagedObjectContext) -> Self? {
+        let request = NSFetchRequest<Self>(entityName: entityName)
         request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
         request.fetchLimit = 1
         
@@ -35,8 +35,8 @@ extension NSManagedObject {
     }
     
     /// 获取所有对象
-    public static func findAll<T: NSManagedObject>(in context: NSManagedObjectContext) -> [T] where T: NSFetchRequestResult, T == Self {
-        let request = NSFetchRequest<T>(entityName: entityName)
+    public static func findAll(in context: NSManagedObjectContext) -> [NSManagedObject] {
+        let request = NSFetchRequest<NSManagedObject>(entityName: entityName)
         
         do {
             return try context.fetch(request)

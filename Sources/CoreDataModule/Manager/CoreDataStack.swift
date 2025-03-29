@@ -6,7 +6,7 @@ import os
 @preconcurrency import CoreData
 
 /// Core Data 栈管理类
-@MainActor public final class CoreDataStack: @unchecked Sendable {
+@MainActor public final class CoreDataStack: Sendable {
     // MARK: - Singleton
     
     public static let shared = CoreDataStack()
@@ -15,10 +15,51 @@ import os
     private let logger = Logger(subsystem: "com.onlyslide.coredatamodule", category: "CoreDataStack")
     
     /// 对象实体缓存 - 按ID缓存常用实体
-    private var objectCache: ExpiringCache<NSManagedObjectID, NSManagedObject>
+    private let objectCache: ExpiringCache<NSManagedObjectID, NSManagedObject>
     
     /// 实体查询缓存 - 缓存常用查询结果
-    private var queryCache: ExpiringCache<String, NSArray>
+    private let queryCache: ExpiringCache<String, NSArray>
+    
+    // 添加缓存统计actor
+    private actor CacheStatsActor {
+        var objectCacheHits: Int = 0
+        var objectCacheMisses: Int = 0
+        var queryCacheHits: Int = 0
+        var queryCacheMisses: Int = 0
+        
+        func recordObjectCacheHit() {
+            objectCacheHits += 1
+        }
+        
+        func recordObjectCacheMiss() {
+            objectCacheMisses += 1
+        }
+        
+        func recordQueryCacheHit() {
+            queryCacheHits += 1
+        }
+        
+        func recordQueryCacheMiss() {
+            queryCacheMisses += 1
+        }
+        
+        func getObjectCacheStats() -> (hits: Int, misses: Int) {
+            return (objectCacheHits, objectCacheMisses)
+        }
+        
+        func getQueryCacheStats() -> (hits: Int, misses: Int) {
+            return (queryCacheHits, queryCacheMisses)
+        }
+        
+        func resetStats() {
+            objectCacheHits = 0
+            objectCacheMisses = 0
+            queryCacheHits = 0
+            queryCacheMisses = 0
+        }
+    }
+    
+    private let cacheStatsActor = CacheStatsActor()
     
     private init() {
         // 初始化缓存
@@ -106,18 +147,14 @@ import os
                 Task {
                     do {
                         let migrationManager = CoreDataMigrationManager.shared
-                        let didMigrate = try await migrationManager.performMigration(
-                            at: storeURL,
-                            progress: { progress in
-                                self.logger.debug("Migration progress: \(progress.percentage)%")
-                            }
+                        // 不要使用返回值做条件判断，而是直接使用结果
+                        // 将原来会导致类型转换错误的写法改为新的方式
+                        try await migrationManager.checkAndMigrateStoreIfNeeded(
+                            at: storeURL
                         )
                         
-                        if didMigrate {
-                            self.logger.info("数据迁移成功完成")
-                        } else {
-                            self.logger.info("无需迁移数据")
-                        }
+                        // 成功完成后记录日志和配置索引
+                        self.logger.info("数据模型检查完成")
                         
                         // 配置模型索引
                         self.configureModelIndices()
@@ -130,9 +167,8 @@ import os
         
         // 自动合并更改
         container.viewContext.automaticallyMergesChangesFromParent = true
-        // 设置合并策略
-        let mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
-        container.viewContext.mergePolicy = mergePolicy
+        // 创建一个新的NSMergePolicy实例而不是使用全局共享的变量
+        container.viewContext.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
         
         // 配置视图上下文
         container.viewContext.shouldDeleteInaccessibleFaults = true
@@ -176,7 +212,12 @@ import os
     /// - Parameter objectID: 对象ID
     /// - Returns: 缓存的对象（如果存在）
     public func cachedObject(for objectID: NSManagedObjectID) -> NSManagedObject? {
-        return objectCache.object(forKey: objectID)
+        if let object = objectCache.object(forKey: objectID) {
+            Task { await cacheStatsActor.recordObjectCacheHit() }
+            return object
+        }
+        Task { await cacheStatsActor.recordObjectCacheMiss() }
+        return nil
     }
     
     /// 缓存查询结果
@@ -193,21 +234,30 @@ import os
     /// - Parameter queryKey: 查询键
     /// - Returns: 缓存的查询结果（如果存在）
     public func cachedQueryResults(forKey queryKey: String) -> [NSManagedObject]? {
-        return queryCache.object(forKey: queryKey) as? [NSManagedObject]
+        if let results = queryCache.object(forKey: queryKey) as? [NSManagedObject] {
+            Task { await cacheStatsActor.recordQueryCacheHit() }
+            return results
+        }
+        Task { await cacheStatsActor.recordQueryCacheMiss() }
+        return nil
     }
     
     /// 获取缓存统计信息
     /// - Returns: 缓存统计结构体
-    public func getStatistics() async throws -> CacheStatistics {
+    public func getStatistics() async -> CacheStatistics {
         // 获取对象缓存和查询缓存的命中率
-        let objectStats = objectCache.statistics
-        let queryStats = queryCache.statistics
+        let objectStats = await cacheStatsActor.getObjectCacheStats()
         
         // 计算总命中和未命中
-        let totalHits = objectStats.count
-        let totalMisses = 0
+        let totalHits = objectStats.hits
+        let totalMisses = objectStats.misses
         
         return CacheStatistics(hits: totalHits, misses: totalMisses)
+    }
+    
+    /// 重置缓存统计信息
+    public func resetStatistics() async {
+        await cacheStatsActor.resetStats()
     }
     
     /// 清理过期缓存
@@ -265,31 +315,54 @@ import os
     }
     
     /// 处理持久化存储加载错误
+    /// - Parameters:
+    ///   - error: 错误
+    ///   - storeDescription: 存储描述
     private func handlePersistentStoreLoadingError(_ error: Error, storeDescription: NSPersistentStoreDescription) {
-        logger.error("无法加载持久化存储: \(error.localizedDescription)")
+        logger.error("错误: 加载持久化存储失败: \(error.localizedDescription)")
         
-        if let storeURL = storeDescription.url, needsMigration(at: storeURL) {
-            logger.warning("检测到需要迁移数据")
-            
-            // 如果是迁移问题，尝试删除并重新创建存储
-            do {
-                try FileManager.default.removeItem(at: storeURL)
-                logger.notice("已删除旧存储，将创建新存储")
+        // 检查是否由迁移失败导致
+        if let nserror = error as NSError {
+            if nserror.domain == NSCocoaErrorDomain && 
+               (nserror.code == NSPersistentStoreIncompatibleVersionHashError ||
+                nserror.code == NSMigrationMissingSourceModelError) {
                 
-                // 重新加载存储
-                persistentContainer.loadPersistentStores { (description, error) in
-                    if let error = error {
-                        self.logger.error("重新创建存储失败: \(error.localizedDescription)")
-                        fatalError("重新创建存储失败: \(error.localizedDescription)")
+                // 记录迁移错误
+                logger.error("错误: 需要迁移，但迁移失败: \(nserror)")
+                
+                // 尝试执行手动迁移
+                Task {
+                    do {
+                        guard let storeURL = storeDescription.url else {
+                            logger.error("错误: 无法获取存储URL")
+                            return
+                        }
+                        
+                        let migrationManager = CoreDataMigrationManager.shared
+                        try await migrationManager.performMigration(at: storeURL)
+                        
+                        // 迁移成功后，尝试重新加载存储
+                        logger.info("手动迁移成功，正在尝试重新加载存储")
+                        try persistentContainer.persistentStoreCoordinator.addPersistentStore(
+                            ofType: storeDescription.type,
+                            configurationName: storeDescription.configuration,
+                            at: storeURL,
+                            options: storeDescription.options
+                        )
+                    } catch {
+                        logger.error("手动迁移和重新加载失败: \(error.localizedDescription)")
                     }
                 }
-            } catch {
-                logger.error("删除旧存储失败: \(error.localizedDescription)")
-                fatalError("删除旧存储失败: \(error.localizedDescription)")
+            } else {
+                // 其他错误类型
+                logger.error("持久化存储加载失败: \(error.localizedDescription), 错误域: \(nserror.domain), 错误码: \(nserror.code)")
+                
+                // 处理常见错误
+                handleCommonPersistentStoreErrors(error)
             }
         } else {
-            logger.error("无法加载持久化存储且无法恢复: \(error.localizedDescription)")
-            fatalError("无法加载持久化存储且无法恢复: \(error.localizedDescription)")
+            // 非NSError类型错误
+            logger.error("持久化存储加载错误: \(error.localizedDescription)")
         }
     }
     
@@ -445,13 +518,14 @@ import os
         
         container.loadPersistentStores { [weak self] (storeDescription, error) in
             if let error = error as NSError? {
-                CoreLogger.error("加载持久化存储失败: \(error), \(error.userInfo)", category: "CoreData")
+                self?.logger.error("加载持久化存储失败: \(error), \(error.userInfo)")
             } else {
-                CoreLogger.info("成功加载持久化存储: \(storeDescription)", category: "CoreData")
+                self?.logger.info("成功加载持久化存储: \(storeDescription)")
                 
                 // 视图上下文合并策略
                 container.viewContext.automaticallyMergesChangesFromParent = true
-                container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+                // 创建一个新的NSMergePolicy实例而不是使用全局共享的变量
+                container.viewContext.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
                 
                 // 配置索引
                 self?.configureModelIndices()
@@ -464,7 +538,8 @@ import os
     /// 配置模型索引
     public func configureModelIndices() {
         // 使用索引配置类配置索引
-        let model = persistentContainer.managedObjectModel
+        // 注意：model变量在这里实际未被使用
+        _ = persistentContainer.managedObjectModel
         
         // TODO: 这里应该实现实际的索引配置
         // 由于 CoreDataIndexConfiguration.shared 不存在，我们需要直接实现或移除这部分
@@ -535,7 +610,8 @@ import os
         
         // 获取存储路径
         let storePath = storeURL.path
-        let storeDirectory = storeURL.deletingLastPathComponent().path
+        // 注意：storeDirectory 变量在下面的代码中未被使用
+        // let storeDirectory = storeURL.deletingLastPathComponent().path
         let fileManager = FileManager.default
         
         // 清除所有缓存
@@ -594,6 +670,53 @@ import os
                 logger.error("保存视图上下文失败: \(error.localizedDescription)")
                 throw error
             }
+        }
+    }
+    
+    /// 处理常见的持久化存储错误
+    /// - Parameter error: 错误对象
+    private func handleCommonPersistentStoreErrors(_ error: Error) {
+        let nsError = error as NSError
+        
+        switch (nsError.domain, nsError.code) {
+        case (NSCocoaErrorDomain, NSFileReadNoSuchFileError),
+             (NSCocoaErrorDomain, NSFileReadInvalidFileNameError):
+            // 文件不存在或文件名无效
+            logger.warning("存储文件不存在或无效，将创建新的存储文件")
+            
+        case (NSCocoaErrorDomain, NSPersistentStoreIncompatibleVersionHashError):
+            // 版本不兼容
+            logger.error("存储文件版本不兼容")
+            
+        case (NSCocoaErrorDomain, NSMigrationError),
+             (NSCocoaErrorDomain, NSMigrationMissingSourceModelError),
+             (NSCocoaErrorDomain, NSMigrationMissingMappingModelError):
+            // 迁移相关错误
+            logger.error("存储迁移失败: \(nsError.localizedDescription)")
+            
+        case (NSPOSIXErrorDomain, 13): // EACCES
+            // 权限错误
+            logger.error("无访问权限: \(nsError.localizedDescription)")
+            
+        case (NSCocoaErrorDomain, NSPersistentStoreIncompleteSaveError):
+            // 保存不完整
+            logger.error("保存操作不完整: \(nsError.localizedDescription)")
+            
+        case (NSCocoaErrorDomain, NSPersistentStoreInvalidTypeError):
+            // 无效存储类型
+            logger.error("无效的存储类型: \(nsError.localizedDescription)")
+            
+        case (NSCocoaErrorDomain, NSPersistentStoreCoordinatorLockingError):
+            // 存储协调器锁定错误
+            logger.error("存储协调器锁定错误: \(nsError.localizedDescription)")
+            
+        case (NSCocoaErrorDomain, NSCoreDataError):
+            // 通用Core Data错误
+            logger.error("通用Core Data错误: \(nsError.localizedDescription)")
+            
+        default:
+            // 未知错误
+            logger.error("未分类持久化存储错误: \(nsError.domain), \(nsError.code): \(nsError.localizedDescription)")
         }
     }
 } 

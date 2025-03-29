@@ -209,20 +209,20 @@ extension Error {
 /// 同步进度报告协议
 public protocol SyncProgressReporterProtocol {
     /// 报告准备开始
-    func reportPreparing()
+    func reportPreparing() async
     
     /// 报告同步中
-    func reportSyncing()
+    func reportSyncing() async
     
     /// 报告上传进度
-    func reportUploading(progress: Double)
+    func reportUploading(progress: Double) async
     
     /// 报告下载进度
-    func reportDownloading(progress: Double)
+    func reportDownloading(progress: Double) async
     
     /// 报告完成
-    func reportCompleted()
+    func reportCompleted() async
     
     /// 报告失败
-    func reportFailed(error: Error)
+    func reportFailed(error: Error) async
 } 

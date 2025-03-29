@@ -105,8 +105,9 @@ public actor CoreDataSyncManager {
     // 网络状态监视器
     private var networkMonitor: NWPathMonitor?
     
-    // 当前网络状态
-    private var isNetworkAvailable: Bool = false
+    // 当前网络状态 - 使用 nonisolated(unsafe) 允许在非 actor 上下文中访问，
+    // 但需要在处理时格外小心，确保访问时在 Task 中
+    nonisolated(unsafe) private var isNetworkAvailable: Bool = false
     
     var syncState: AnyPublisher<CoreDataSyncState, Never> {
         get async {
@@ -192,21 +193,9 @@ public actor CoreDataSyncManager {
                 guard let self = self else { return }
                 
                 let newNetworkAvailable = path.status == .satisfied
-                let previousNetworkAvailable = self.isNetworkAvailable
-                self.isNetworkAvailable = newNetworkAvailable
                 
-                // 记录网络状态变化
-                if previousNetworkAvailable != newNetworkAvailable {
-                    CoreLogger.info("网络状态变更: \(newNetworkAvailable ? "可用" : "不可用")", category: "Sync")
-                    
-                    // 如果网络恢复且同步状态为错误状态，触发同步
-                    if newNetworkAvailable {
-                        let currentState = await self.stateActor.currentState
-                        if case .error = currentState {
-                            await self.startSync()
-                        }
-                    }
-                }
+                // 在 Task 中访问 actor 隔离的属性，这样是安全的
+                await self.updateNetworkStatus(newNetworkAvailable: newNetworkAvailable)
             }
         }
         
@@ -293,15 +282,8 @@ public actor CoreDataSyncManager {
             }
         }
         
-        // 获取需要同步的更改
-        var changes: [NSManagedObject] = []
-        try await context.performAndWait {
-            let fetchRequest = NSFetchRequest<NSManagedObject>(entityName: "SyncLog")
-            fetchRequest.predicate = NSPredicate(format: "synced == NO")
-            fetchRequest.fetchBatchSize = self.configuration.batchSize
-            
-            changes = try context.fetch(fetchRequest)
-        }
+        // 安全地获取需要同步的更改
+        let changes = try await fetchChangesNeedingSync(context: context)
         
         CoreLogger.info("找到 \(changes.count) 个需要同步的更改", category: "Sync")
         
@@ -312,25 +294,39 @@ public actor CoreDataSyncManager {
         try await updateSyncStatus(in: context)
     }
     
+    /// 安全地获取需要同步的更改
+    private func fetchChangesNeedingSync(context: NSManagedObjectContext) async throws -> [NSManagedObject] {
+        // 使用Task.detached创建隔离的执行环境，防止数据竞争
+        return try await Task.detached {
+            return try await context.performAndWait {
+                let fetchRequest = NSFetchRequest<NSManagedObject>(entityName: "SyncLog")
+                fetchRequest.predicate = NSPredicate(format: "synced == NO")
+                fetchRequest.fetchBatchSize = self.configuration.batchSize
+                
+                return try context.fetch(fetchRequest)
+            }
+        }.value
+    }
+    
     private func processBatchChanges(_ changes: [NSManagedObject], in context: NSManagedObjectContext) async throws {
         var retryCount = 0
         var processedCount = 0
         let totalCount = changes.count
+        
+        // 创建changes的本地不可变副本，避免数据竞争
+        let changesCopy = changes
         
         repeat {
             do {
                 var success = false
                 
                 try await context.performAndWait {
-                    for (index, change) in changes.enumerated() {
+                    for (index, change) in changesCopy.enumerated() {
                         // 更新进度
                         let progress = 0.1 + 0.8 * (Double(index) / Double(totalCount))
                         
-                        // 更新同步状态 - 避免直接捕获self在闭包中，使用Task
-                        Task { @Sendable [weak self] in
-                            guard let self = self else { return }
-                            await self.stateActor.updateState(.syncing(progress: progress))
-                        }
+                        // 使用async let避免捕获self和可变状态
+                        async let _ = self.stateActor.updateState(.syncing(progress: progress))
                         
                         // 处理单个更改
                         try self.processChange(change, in: context)
@@ -437,5 +433,24 @@ public actor CoreDataSyncManager {
         }
         
         try context.save()
+    }
+    
+    /// 更新网络状态
+    private func updateNetworkStatus(newNetworkAvailable: Bool) async {
+        let previousNetworkAvailable = self.isNetworkAvailable
+        self.isNetworkAvailable = newNetworkAvailable
+        
+        // 记录网络状态变化
+        if previousNetworkAvailable != newNetworkAvailable {
+            CoreLogger.info("网络状态变更: \(newNetworkAvailable ? "可用" : "不可用")", category: "Sync")
+            
+            // 如果网络恢复且同步状态为错误状态，触发同步
+            if newNetworkAvailable {
+                let currentState = await self.stateActor.currentState
+                if case .error = currentState {
+                    await self.startSync()
+                }
+            }
+        }
     }
 } 

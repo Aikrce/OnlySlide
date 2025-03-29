@@ -62,7 +62,7 @@ public enum MigrationError: Error, Equatable {
 }
 
 /// 迁移步骤
-public struct MigrationStep: Equatable {
+public struct MigrationStep: Equatable, Sendable {
     /// 步骤索引
     public let index: Int
     

@@ -6,13 +6,13 @@ public struct ModelVersionDefinition: Sendable {
     /// 版本信息
     public let version: ModelVersion
     /// 映射块，用于自定义迁移逻辑
-    public let mappingBlock: @Sendable ((NSMappingModel) -> Void)?
+    public let mappingBlock: (@Sendable (NSMappingModel) -> Void)?
     
     /// 初始化模型版本定义
     /// - Parameters:
     ///   - version: 模型版本
     ///   - mappingBlock: 可选的映射块
-    public init(version: ModelVersion, mappingBlock: @Sendable ((NSMappingModel) -> Void)? = nil) {
+    public init(version: ModelVersion, mappingBlock: (@Sendable (NSMappingModel) -> Void)? = nil) {
         self.version = version
         self.mappingBlock = mappingBlock
     }
@@ -36,7 +36,7 @@ public final class ModelVersionDefinitionRegistry {
     /// - Parameters:
     ///   - version: 模型版本
     ///   - mappingBlock: 可选的映射块
-    public func register(version: ModelVersion, mappingBlock: @Sendable ((NSMappingModel) -> Void)? = nil) {
+    public func register(version: ModelVersion, mappingBlock: (@Sendable (NSMappingModel) -> Void)? = nil) {
         let definition = ModelVersionDefinition(version: version, mappingBlock: mappingBlock)
         definitions.append(definition)
     }
@@ -159,7 +159,7 @@ public struct MigrationStepDefinition: Sendable {
     /// 目标版本
     public let destinationVersion: ModelVersion
     /// 可选的映射块
-    public let mappingBlock: ((NSMappingModel) -> Void)?
+    public let mappingBlock: (@Sendable (NSMappingModel) -> Void)?
     
     /// 初始化迁移步骤定义
     /// - Parameters:
@@ -169,7 +169,7 @@ public struct MigrationStepDefinition: Sendable {
     public init(
         sourceVersion: ModelVersion,
         destinationVersion: ModelVersion,
-        mappingBlock: ((NSMappingModel) -> Void)? = nil
+        mappingBlock: (@Sendable (NSMappingModel) -> Void)? = nil
     ) {
         self.sourceVersion = sourceVersion
         self.destinationVersion = destinationVersion

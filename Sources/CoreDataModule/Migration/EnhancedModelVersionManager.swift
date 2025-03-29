@@ -102,6 +102,7 @@ public struct EnhancedModelVersionManager: ModelVersionManaging {
     
     /// 创建默认的模型版本管理器
     /// - Returns: 配置好的模型版本管理器
+    @MainActor
     public static func createDefault() -> EnhancedModelVersionManager {
         return EnhancedModelVersionManager(resourceProvider: CoreDataResourceManager.shared)
     }
@@ -326,36 +327,30 @@ public struct EnhancedModelVersionManager: ModelVersionManaging {
     }
 }
 
-// MARK: - CoreDataResourceManager + ResourceProviding
-
-/// 使现有的资源管理器符合资源提供协议
-extension CoreDataResourceManager: ResourceProviding {
-    // 已经实现了所需方法，只需要符合协议即可
-}
-
 // MARK: - DependencyRegistry Extension
 
-/// 依赖注册表扩展，注册模型版本管理器
-extension DependencyRegistry {
-    /// 注册工厂
-    public func registerFactories() {
-        // 注册模型版本管理器
-        registerShared(ModelVersionManagerFactory())
-        
-        // 注册其他工厂...
-    }
-}
+// 移除重复扩展
+// extension DependencyRegistry {
+//     /// 注册工厂
+//     public func registerFactories() {
+//         // 注册模型版本管理器
+//         registerShared(ModelVersionManagerFactory())
+//         
+//         // 注册其他工厂...
+//     }
+// }
 
-/// 模型版本管理器工厂
-public struct ModelVersionManagerFactory: Factory {
-    public typealias Instance = EnhancedModelVersionManager
-    
-    public func create() -> EnhancedModelVersionManager {
-        return EnhancedModelVersionManager.createDefault()
-    }
-}
+// 修改工厂以支持MainActor
+// /// 模型版本管理器工厂
+// public struct ModelVersionManagerFactory: Factory {
+//     public typealias Instance = EnhancedModelVersionManager
+//     
+//     public func create() -> EnhancedModelVersionManager {
+//         return EnhancedModelVersionManager.createDefault()
+//     }
+// }
 
-// MARK: - 兼容层
+/// 兼容层
 
 /// 将新的基于值类型的实现与现有API集成
 @MainActor

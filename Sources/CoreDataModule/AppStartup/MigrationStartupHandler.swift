@@ -1,7 +1,7 @@
 @preconcurrency import Foundation
 @preconcurrency import CoreData
-// 导入标准的MigrationProgress定义
-@preconcurrency import CoreDataModule
+// 删除冲突的导入
+// @preconcurrency import CoreDataModule
 
 /// 迁移启动处理器
 /// 负责在应用启动时执行必要的数据库迁移
@@ -19,7 +19,7 @@
     private let versionManager: CoreDataModelVersionManager
     
     /// 迁移进度观察者
-    private var migrationProgressObserver: ((MigrationProgress) -> Void)?
+    private var migrationProgressObserver: ((CDMigrationProgress) -> Void)?
     
     /// 迁移是否完成
     private var migrationCompleted = false
@@ -50,7 +50,7 @@
     /// - Returns: 迁移是否成功
     public func checkAndMigrateStoreIfNeeded(
         at storeURL: URL,
-        progressObserver: ((MigrationProgress) -> Void)? = nil
+        progressObserver: ((CDMigrationProgress) -> Void)? = nil
     ) async -> Bool {
         // 设置进度观察者
         self.migrationProgressObserver = progressObserver
@@ -144,7 +144,7 @@ import SwiftUI
     private let startupHandler: MigrationStartupHandler
     
     /// 最新的迁移进度
-    @Published public private(set) var progress: MigrationProgress?
+    @Published public private(set) var progress: CDMigrationProgress?
     
     /// 迁移状态
     @Published public private(set) var status: MigrationStatus = .inProgress

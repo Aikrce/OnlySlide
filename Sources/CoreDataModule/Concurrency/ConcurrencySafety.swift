@@ -63,13 +63,33 @@ public final class ThreadSafe<Value: Sendable> {
 
 extension Publisher where Self.Failure == Never {
     /// 安全地处理值类型发布者的更新
+    @MainActor
     public func assignNoRetain<Root: AnyObject>(
         to keyPath: ReferenceWritableKeyPath<Root, Self.Output>,
         on object: Root
     ) -> AnyCancellable {
+        return sink { value in
+            // 直接在MainActor上执行赋值操作，不需要再调度到主线程
+            object[keyPath: keyPath] = value
+        }
+    }
+    
+    /// 安全地处理值类型发布者的更新（非MainActor上下文版本）
+    public func assignNoRetainBackground<Root: AnyObject>(
+        to keyPath: ReferenceWritableKeyPath<Root, Self.Output>,
+        on object: Root
+    ) -> AnyCancellable {
         return sink { [weak object] value in
-            DispatchQueue.main.async {
-                object?[keyPath: keyPath] = value
+            // 创建值的本地副本，避免捕获
+            let localValue = value
+            let weakObj = object
+            
+            // 使用MainActor运行而不是使用Task，避免数据竞争
+            MainActor.run {
+                // 在主线程上安全地设置值
+                if let obj = weakObj {
+                    obj[keyPath: keyPath] = localValue
+                }
             }
         }
     }
@@ -166,7 +186,8 @@ public final class ConcurrentDictionary<Key: Hashable, Value> {
 // MARK: - 异步资源访问
 
 /// 安全地异步访问资源的辅助器
-public final class AsyncResourceAccessor<Resource: Sendable> {
+@MainActor
+public final class AsyncResourceAccessor<Resource: Sendable>: @unchecked Sendable {
     private let resource: Resource
     private let queue = DispatchQueue(label: "com.onlyslide.asyncresource", attributes: .concurrent)
     
@@ -175,23 +196,17 @@ public final class AsyncResourceAccessor<Resource: Sendable> {
     }
     
     /// 异步读取资源
-    public func read<T: Sendable>(_ action: @escaping (Resource) -> T) async -> T {
-        return await withCheckedContinuation { continuation in
-            queue.async {
-                let result = action(self.resource)
-                continuation.resume(returning: result)
-            }
-        }
+    public func read<T: Sendable>(_ action: @escaping @Sendable (Resource) -> T) async -> T {
+        // 使用Task.detached隔离并发域
+        return await Task.detached {
+            action(self.resource)
+        }.value
     }
     
     /// 异步写入资源（使用屏障确保写入安全）
-    public func write<T: Sendable>(_ action: @escaping (Resource) -> T) async -> T {
-        return await withCheckedContinuation { continuation in
-            queue.async(flags: .barrier) {
-                let result = action(self.resource)
-                continuation.resume(returning: result)
-            }
-        }
+    public func write<T: Sendable>(_ action: @Sendable (Resource) -> T) async -> T {
+        // 在MainActor上直接执行，保证同步安全
+        return action(resource)
     }
 }
 

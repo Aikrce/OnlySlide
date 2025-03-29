@@ -8,14 +8,17 @@ public struct AppEntryDemo: App {
     // MARK: - Properties
     
     /// 迁移管理器
-    @StateObject private var migrationManager = MigrationManager()
+    @StateObject private var migrationManager = CoreDataMigrationManager.shared
     
     // MARK: - Body
     
     public var body: some Scene {
         WindowGroup {
-            MigrationProgressView(migrationManager: migrationManager) {
+            ZStack {
                 ContentView()
+                
+                // 显示迁移进度视图
+                MigrationProgressView(migrationManager: migrationManager)
             }
         }
     }

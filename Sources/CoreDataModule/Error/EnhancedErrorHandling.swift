@@ -26,16 +26,31 @@ public protocol RecoveryService: Sendable {
     func attemptRecovery(from error: Error, context: String) async -> RecoveryResult
     
     /// 注册恢复策略
-    mutating func register(strategy: RecoveryStrategy)
+    func register(strategy: CoreDataRecoveryStrategy)
+}
+
+/// 可恢复策略协议，提供实际的恢复功能
+public protocol RecoverableStrategy: Sendable {
+    /// 检查是否可以处理指定错误
+    func canHandle(_ error: CoreDataError) -> Bool
+    
+    /// 尝试从错误中恢复
+    func attemptRecovery(from error: CoreDataError, context: String) async -> RecoveryResult
+}
+
+/// 错误恢复策略协议
+public protocol CoreDataRecoveryStrategy: Sendable {
+    /// 获取策略的名称
+    var name: String { get }
 }
 
 /// 错误策略注册协议
 public protocol ErrorStrategyRegistry: Sendable {
     /// 注册错误处理策略
-    mutating func registerStrategy(_ strategy: ErrorHandlingStrategy, for errorType: String, context: String?)
+    func registerStrategy(_ strategy: ErrorHandlingStrategy, for errorType: String, context: String?)
     
     /// 重置错误统计
-    mutating func resetErrorStatistics()
+    func resetErrorStatistics()
 }
 
 // MARK: - Enhanced Error Handling Manager
@@ -48,7 +63,7 @@ public struct EnhancedErrorHandler: ErrorHandlingProtocol, ErrorStrategyRegistry
     private let logger: Logger
     private let converter: ErrorConverter
     private let publisher: PassthroughSubject<(Error, String), Never>
-    private var strategyResolver: ErrorStrategyResolver
+    private let strategyResolver: ErrorStrategyResolverRef
     
     // MARK: - Initialization
     
@@ -60,7 +75,7 @@ public struct EnhancedErrorHandler: ErrorHandlingProtocol, ErrorStrategyRegistry
     public init(
         logger: Logger = Logger(subsystem: "com.onlyslide.coredatamodule", category: "EnhancedErrorHandler"),
         converter: ErrorConverter = ErrorConverter(),
-        strategyResolver: ErrorStrategyResolver = ErrorStrategyResolver()
+        strategyResolver: ErrorStrategyResolverRef = ErrorStrategyResolverRef()
     ) {
         self.logger = logger
         self.converter = converter
@@ -82,7 +97,15 @@ public struct EnhancedErrorHandler: ErrorHandlingProtocol, ErrorStrategyRegistry
         return publisher.eraseToAnyPublisher()
     }
     
-    public mutating func handle(_ error: Error, context: String, file: String = #file, line: Int = #line, function: String = #function) {
+    /// 处理错误
+    /// 记录错误并执行相应策略
+    /// - Parameters:
+    ///   - error: 错误
+    ///   - context: 上下文描述
+    ///   - file: 文件名
+    ///   - line: 行号
+    ///   - function: 函数名
+    public func handle(_ error: Error, context: String, file: String = #file, line: Int = #line, function: String = #function) {
         // 记录错误
         logError(error, context: context, file: file, line: line, function: function)
         
@@ -97,7 +120,7 @@ public struct EnhancedErrorHandler: ErrorHandlingProtocol, ErrorStrategyRegistry
         
         // 应用恢复策略
         Task {
-            await applyRecoveryStrategy(for: error, context: context, errorID: errorID)
+            _ = await applyRecoveryStrategy(for: error, context: context, errorID: errorID)
         }
     }
     
@@ -112,11 +135,11 @@ public struct EnhancedErrorHandler: ErrorHandlingProtocol, ErrorStrategyRegistry
     
     // MARK: - ErrorStrategyRegistry Implementation
     
-    public mutating func registerStrategy(_ strategy: ErrorHandlingStrategy, for errorType: String, context: String? = nil) {
+    public func registerStrategy(_ strategy: ErrorHandlingStrategy, for errorType: String, context: String? = nil) {
         strategyResolver.registerStrategy(strategy, for: errorType, context: context)
     }
     
-    public mutating func resetErrorStatistics() {
+    public func resetErrorStatistics() {
         strategyResolver.resetErrorCounts()
     }
     
@@ -222,6 +245,10 @@ public struct EnhancedErrorHandler: ErrorHandlingProtocol, ErrorStrategyRegistry
         case .default:
             // 应用默认恢复策略
             return await applyDefaultStrategy(for: error, context: context)
+            
+        case .none:
+            logger.info("未指定恢复策略，不执行恢复")
+            return .failure(error)
         }
     }
     
@@ -285,176 +312,89 @@ public struct EnhancedErrorHandler: ErrorHandlingProtocol, ErrorStrategyRegistry
         let errorIdentifier = createErrorIdentifier(error: error, context: context)
         
         // 尝试应用恢复策略
-        return await applyRecoveryStrategy(for: error, context: context, errorIdentifier: errorIdentifier)
-    }
-    
-    /// 应用恢复策略
-    /// - Parameters:
-    ///   - error: 错误对象
-    ///   - context: 错误上下文
-    ///   - errorIdentifier: 错误标识符
-    /// - Returns: 恢复结果
-    private func applyRecoveryStrategy(for error: Error, context: String, errorIdentifier: String) async -> RecoveryResult {
-        // 获取策略
-        let strategy = getStrategy(for: error, context: context)
-        
-        // 应用策略
-        switch strategy {
-        case .retry(let maxAttempts, let delay):
-            // 检查重试次数
-            let count = strategyResolver.getErrorCount(for: errorIdentifier)
-            if count <= maxAttempts {
-                logger.info("将在 \(delay) 秒后重试操作 (尝试 \(count)/\(maxAttempts))")
-                
-                // 延迟后重试
-                do {
-                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                    return await retryOperation(for: errorIdentifier, error: error, context: context)
-                } catch {
-                    return .failure(error)
-                }
-            } else {
-                logger.warning("已达到最大重试次数 (\(maxAttempts))，不再重试")
-                return .failure(error)
-            }
-            
-        case .backupAndRestore:
-            // 实现备份和恢复逻辑
-            return await performBackupAndRestore(for: error, context: context)
-            
-        case .userInteraction:
-            // 通知用户界面请求用户交互
-            logger.info("请求用户交互以处理错误")
-            return .requiresUserInteraction
-            
-        case .logOnly:
-            // 只记录错误，不做其他处理
-            logger.info("仅记录错误，不执行恢复策略")
-            return .failure(error)
-            
-        case .default:
-            // 默认策略
-            return await applyDefaultStrategy(for: error, context: context)
-        }
-    }
-    
-    /// 重试操作
-    /// - Parameters:
-    ///   - errorIdentifier: 错误标识符
-    ///   - error: 原始错误
-    ///   - context: 错误上下文
-    /// - Returns: 恢复结果
-    private func retryOperation(for errorIdentifier: String, error: Error, context: String) async -> RecoveryResult {
-        // 重试逻辑实现
-        logger.info("重试操作: \(errorIdentifier)")
-        
-        // 这里实现实际的重试逻辑
-        // 由于没有具体的操作上下文，这里只返回部分成功
-        return .partialSuccess("操作已重试，但可能需要验证结果")
-    }
-    
-    /// 执行备份和恢复
-    /// - Parameters:
-    ///   - error: 错误对象
-    ///   - context: 错误上下文
-    /// - Returns: 恢复结果
-    private func performBackupAndRestore(for error: Error, context: String) async -> RecoveryResult {
-        // 实现备份和恢复逻辑
-        logger.info("执行备份和恢复流程")
-        
-        // 这里实现实际的备份和恢复逻辑
-        // 由于没有具体的实现，这里只返回部分成功
-        return .partialSuccess("数据已恢复到上一个可用状态")
-    }
-    
-    /// 获取错误处理策略
-    /// - Parameters:
-    ///   - error: 错误对象
-    ///   - context: 错误上下文
-    /// - Returns: 错误处理策略
-    private func getStrategy(for error: Error, context: String) -> ErrorHandlingStrategy {
-        return strategyResolver.getStrategy(for: error, context: context)
+        return await applyRecoveryStrategy(for: error, context: context, errorID: errorIdentifier)
     }
 }
 
 // MARK: - Enhanced Recovery Service
 
 /// 增强版恢复服务
-public struct EnhancedRecoveryService: RecoveryService {
+public final class EnhancedRecoveryService: RecoveryService {
     // MARK: - Properties
     
     private let logger: Logger
-    private var strategies: [any RecoveryStrategy & Sendable] = []
+    private let strategiesLock = NSLock()
+    private let _strategies: AtomicReference<[CoreDataRecoveryStrategy]>
     
     // MARK: - Initialization
     
     /// 初始化恢复服务
-    public init(logger: Logger = Logger(subsystem: "com.onlyslide.coredatamodule", category: "EnhancedRecovery")) {
+    public init(logger: Logger = Logger(subsystem: "com.onlyslide.coredatamodule", category: "EnhancedRecoveryService")) {
         self.logger = logger
+        self._strategies = AtomicReference([])
         registerDefaultStrategies()
     }
     
     // MARK: - Factory Method
     
-    /// 创建默认恢复服务
     public static func createDefault() -> EnhancedRecoveryService {
         return EnhancedRecoveryService()
     }
     
     // MARK: - RecoveryService Implementation
     
-    public mutating func register(strategy: RecoveryStrategy) {
-        strategies.append(strategy)
-        logger.debug("已注册恢复策略: \(strategy.name)")
-    }
-    
     public func attemptRecovery(from error: Error, context: String) async -> RecoveryResult {
-        // 记录恢复尝试
-        logger.info("尝试从错误恢复: \(error.localizedDescription) [\(context)]")
+        logger.info("尝试恢复错误: \(error.localizedDescription) [上下文: \(context)]")
         
-        // 查找适用的策略
-        let applicableStrategies = strategies.filter { $0.canHandle(error) }
-        
-        if applicableStrategies.isEmpty {
-            logger.warning("没有找到适用的恢复策略: \(error.localizedDescription)")
-            return .failure(error)
+        // 转换成CoreDataError以便更好地处理
+        let coreDataError: CoreDataError
+        if let cdError = error as? CoreDataError {
+            coreDataError = cdError
+        } else {
+            let converter = ErrorConverter()
+            coreDataError = converter.convert(error)
         }
         
-        // 尝试每个适用的策略
-        for strategy in applicableStrategies {
-            logger.debug("应用恢复策略: \(strategy.name)")
-            
-            let result = await strategy.attemptRecovery(from: error, context: context)
-            
-            switch result {
-            case .success:
-                logger.info("恢复成功: \(strategy.name)")
-                return result
-            case .partialSuccess(let message):
-                logger.info("部分恢复: \(strategy.name) - \(message)")
-                return result
-            case .requiresUserInteraction:
-                logger.info("需要用户交互: \(strategy.name)")
-                return result
-            case .failure(let recoveryError):
-                logger.error("恢复失败: \(strategy.name) - \(recoveryError.localizedDescription)")
-                // 继续尝试下一个策略
+        // 使用线程安全的方式访问strategies
+        let currentStrategies = _strategies.value
+        
+        // 尝试应用每个恢复策略
+        for strategy in currentStrategies {
+            if let recoverableStrategy = strategy as? RecoverableStrategy, 
+               recoverableStrategy.canHandle(coreDataError) {
+                logger.info("应用恢复策略: \(String(describing: type(of: strategy)))")
+                return await recoverableStrategy.attemptRecovery(from: coreDataError, context: context)
             }
         }
         
-        // 所有策略都失败
-        logger.error("所有恢复策略都失败: \(error.localizedDescription)")
+        // 如果没有适用的策略，返回失败
+        logger.warning("未找到适用的恢复策略")
         return .failure(error)
+    }
+    
+    /// 注册恢复策略
+    public func register(strategy: CoreDataRecoveryStrategy) {
+        // 使用原子操作修改策略数组
+        _strategies.modify { strategies in
+            strategies.append(strategy)
+        }
+        logger.debug("已注册恢复策略: \(strategy.name)")
     }
     
     // MARK: - Private Methods
     
-    private mutating func registerDefaultStrategies() {
-        register(strategy: StoreResetRecoveryStrategy())
-        register(strategy: ContextResetRecoveryStrategy())
-        register(strategy: MigrationRecoveryStrategy())
-        register(strategy: BackupRestorationStrategy())
-        register(strategy: ValidatorRecoveryStrategy())
+    /// 注册默认策略
+    private func registerDefaultStrategies() {
+        // 以下策略需要实现并添加到项目中
+        // 注：这里应该导入实际的恢复策略实现
+        // register(strategy: StoreNotFoundRecoveryStrategy())
+        // register(strategy: ValidationErrorRecoveryStrategy())
+        // register(strategy: NetworkErrorRecoveryStrategy())
+        // register(strategy: MergeConflictRecoveryStrategy())
+        // register(strategy: SaveFailedRecoveryStrategy())
+        
+        // 临时解决方案
+        logger.info("已初始化恢复服务，但未注册默认策略（需要实现）")
     }
 }
 
@@ -512,23 +452,23 @@ public struct ErrorConverter: Sendable {
             } else if error.code == NSPersistentStoreOpenError {
                 return .storeNotFound("无法打开存储: \(error.localizedDescription)")
             } else if error.code == NSPersistentStoreSaveError {
-                return .saveFailed("保存失败: \(error.localizedDescription)")
+                return .saveFailed(error)
             } else {
-                return .saveFailed("存储操作失败: \(error.localizedDescription)")
+                return .saveFailed(error)
             }
             
         case NSManagedObjectConstraintErrorMinimum...NSManagedObjectConstraintErrorMaximum:
             // 约束错误
-            return .saveFailed("约束错误: \(error.localizedDescription)")
+            return .saveFailed(error)
             
         case NSCoreDataErrorMinimum...NSCoreDataErrorMaximum:
             // 其他CoreData错误
             if error.code == NSManagedObjectValidationError {
                 return .validationFailed("验证错误: \(error.localizedDescription)")
             } else if error.code == NSManagedObjectContextLockingError {
-                return .saveFailed("上下文锁定错误: \(error.localizedDescription)")
+                return .saveFailed(error)
             } else if error.code == NSPersistentStoreCoordinatorLockingError {
-                return .saveFailed("存储协调器锁定错误: \(error.localizedDescription)")
+                return .saveFailed(error)
             } else if error.code == NSManagedObjectMergeError {
                 return .mergeConflict("合并错误: \(error.localizedDescription)")
             } else if error.code == NSManagedObjectReferentialIntegrityError {
@@ -549,12 +489,76 @@ public struct ErrorConverter: Sendable {
                 if error.code == NSFileNoSuchFileError || error.code == NSFileReadNoSuchFileError {
                     return .storeNotFound("文件不存在: \(error.localizedDescription)")
                 } else if error.code == NSFileReadUnknownError || error.code == NSFileWriteUnknownError {
-                    return .saveFailed("文件读写错误: \(error.localizedDescription)")
+                    return .saveFailed(error)
                 }
             }
             
             return .unknown(error)
         }
+    }
+}
+
+// MARK: - Error Strategy Resolver Reference Class
+
+/// 错误策略解析器引用类型
+public final class ErrorStrategyResolverRef: Sendable {
+    // 使用锁来保证线程安全
+    private let lock = NSLock()
+    
+    // 封装原有的策略解析器
+    private let resolver: AtomicReference<ErrorStrategyResolver>
+    
+    public init() {
+        // 实例化时初始化一次策略解析器
+        self.resolver = AtomicReference(ErrorStrategyResolver())
+        
+        // 设置默认策略
+        setupDefaultStrategies()
+    }
+    
+    // MARK: - 线程安全的方法
+    
+    /// 获取策略
+    public func getStrategy(for errorType: Error, context: String) -> ErrorHandlingStrategy? {
+        return resolver.value.getStrategy(for: errorType, context: context)
+    }
+    
+    /// 注册策略
+    public func registerStrategy(_ strategy: ErrorHandlingStrategy, for errorType: String, context: String? = nil) {
+        resolver.modify { resolver in 
+            resolver.registerStrategy(strategy, for: errorType, context: context)
+        }
+    }
+    
+    /// 获取错误计数
+    public func getErrorCount(for identifier: String) -> Int {
+        return resolver.value.getErrorCount(for: identifier)
+    }
+    
+    /// 增加错误计数
+    public func incrementErrorCount(for identifier: String) {
+        resolver.modify { resolver in
+            resolver.incrementErrorCount(for: identifier)
+        }
+    }
+    
+    /// 重置错误计数
+    public func resetErrorCounts() {
+        resolver.modify { resolver in
+            resolver.resetErrorCounts()
+        }
+    }
+    
+    // MARK: - 私有方法
+    
+    /// 设置默认策略
+    private func setupDefaultStrategies() {
+        // 先实现本地默认策略
+        registerStrategy(.retry(maxAttempts: 3, delay: 1.0), for: "NSURLErrorDomain")
+        registerStrategy(.backupAndRestore, for: "CoreDataError.storeNotFound")
+        registerStrategy(.backupAndRestore, for: "CoreDataError.migrationFailed")
+        registerStrategy(.userInteraction, for: "CoreDataError.validationFailed")
+        registerStrategy(.logOnly, for: "CoreDataError.notFound")
     }
 }
 
@@ -685,6 +689,7 @@ public struct ErrorServices {
         line: Int = #line,
         function: String = #function
     ) {
+        // 错误处理器现在是非mutating的，直接调用即可
         errorHandler.handle(error, context: context, file: file, line: line, function: function)
     }
     
@@ -753,4 +758,26 @@ public struct ErrorHandlerAdapter: Sendable {
 @MainActor
 public func getErrorHandler() -> EnhancedErrorHandler {
     return ErrorHandlerAdapter.shared.handler()
+}
+
+/// 原子引用类，提供线程安全的状态访问
+public final class AtomicReference<T: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _value: T
+    
+    public init(_ value: T) {
+        self._value = value
+    }
+    
+    public var value: T {
+        lock.lock()
+        defer { lock.unlock() }
+        return _value
+    }
+    
+    public func modify(_ action: (inout T) -> Void) {
+        lock.lock()
+        defer { lock.unlock() }
+        action(&_value)
+    }
 } 

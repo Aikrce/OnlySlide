@@ -21,7 +21,7 @@ public struct CacheStatistics: Sendable {
 }
 
 /// Core Data资源管理器
-public final class CoreDataResourceManager {
+public actor CoreDataResourceManager: ResourceProviding {
     
     /// 共享实例
     public static let shared = CoreDataResourceManager()
@@ -33,6 +33,31 @@ public final class CoreDataResourceManager {
     /// - Parameter dataStack: 数据栈实例，默认使用共享实例
     public init(dataStack: CoreDataStack = CoreDataStack.shared) {
         self.dataStack = dataStack
+    }
+    
+    // MARK: - ResourceProviding 协议实现
+    
+    /// 获取合并的对象模型
+    /// - Returns: 合并的对象模型
+    public func mergedObjectModel() async -> NSManagedObjectModel? {
+        return await dataStack.persistentContainer.managedObjectModel
+    }
+    
+    /// 获取所有可用的模型
+    /// - Returns: 所有可用的模型数组
+    public func allModels() async -> [NSManagedObjectModel] {
+        // 从searchBundles中加载所有模型文件
+        return searchBundles.flatMap { bundle -> [NSManagedObjectModel] in
+            let modelURLs = bundle.urls(forResourcesWithExtension: "momd", subdirectory: nil) ?? []
+            return modelURLs.compactMap { modelURL -> NSManagedObjectModel? in
+                NSManagedObjectModel(contentsOf: modelURL)
+            }
+        }
+    }
+    
+    /// 获取用于搜索的包
+    public var searchBundles: [Bundle] {
+        [Bundle.main]
     }
     
     /// 备份Core Data存储的目录
@@ -75,7 +100,7 @@ public final class CoreDataResourceManager {
     /// 获取指定存储的所有可用备份
     /// - Parameter storeURL: 存储的URL
     /// - Returns: 可用备份的URL列表，按修改日期排序
-    public func getBackups(for storeURL: URL) -> [URL] {
+    public func getBackups(for storeURL: URL) async throws -> [URL] {
         let storeName = storeURL.deletingPathExtension().lastPathComponent
         
         do {
@@ -101,289 +126,103 @@ public final class CoreDataResourceManager {
             }
         } catch {
             // 如果发生错误，返回空数组
+            throw CoreDataError.backupFailed(description: "无法访问备份目录: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - 备份相关方法 - 保持异步性并确保正确处理错误
+
+    /// 创建备份目录
+    public func createBackupDirectory() async throws -> URL {
+        return try backupsDirectory()
+    }
+    
+    /// 获取备份存储URL
+    public func backupStoreURL() -> URL {
+        do {
+            let timestamp = Date().timeIntervalSince1970
+            let backupURL = try backupsDirectory().appendingPathComponent("backup_\(Int(timestamp)).backup")
+            return backupURL
+        } catch {
+            // 如果无法创建备份目录，则使用临时目录
+            return FileManager.default.temporaryDirectory.appendingPathComponent("emergency_backup.backup")
+        }
+    }
+    
+    /// 获取所有备份
+    public func allBackups() -> [URL] {
+        do {
+            let backupsURL = try backupsDirectory()
+            let backupURLs = try FileManager.default.contentsOfDirectory(
+                at: backupsURL,
+                includingPropertiesForKeys: [.contentModificationDateKey],
+                options: .skipsHiddenFiles
+            )
+            
+            return backupURLs.filter { $0.pathExtension == "backup" }
+        } catch {
             return []
         }
     }
-
-    /// 从备份文件恢复数据
-    /// - Parameter backupURL: 备份文件的URL
-    /// - Returns: 是否成功恢复
-    public func restoreBackup(from backupURL: URL) async throws -> Bool {
-        guard backupURL.pathExtension == "backup" else {
-            throw CoreDataError.invalidBackupFile
-        }
-        
-        // 获取Core Data存储的URL
-        let coordinator = await dataStack.persistentContainer.persistentStoreCoordinator
-        guard let storeURL = coordinator.persistentStores.first?.url else {
-            throw CoreDataError.storeNotFound("无法获取持久化存储URL")
-        }
-        
-        // 关闭当前存储
-        for store in coordinator.persistentStores {
-            try coordinator.remove(store)
-        }
-        
-        let fileManager = FileManager.default
-        
-        // 备份当前存储，以防恢复失败
-        let temporaryBackup = storeURL.deletingLastPathComponent().appendingPathComponent("temp_before_restore.sqlite")
-        if fileManager.fileExists(atPath: temporaryBackup.path) {
-            try fileManager.removeItem(at: temporaryBackup)
-        }
-        
-        if fileManager.fileExists(atPath: storeURL.path) {
-            try fileManager.copyItem(at: storeURL, to: temporaryBackup)
-        }
-        
+    
+    /// 清理备份
+    public func cleanupBackups(keepLatest count: Int) {
         do {
-            // 删除当前存储
-            if fileManager.fileExists(atPath: storeURL.path) {
-                try fileManager.removeItem(at: storeURL)
-            }
-            
-            // 解压备份文件到存储位置
-            try unzipBackup(from: backupURL, to: storeURL.deletingLastPathComponent())
-            
-            // 重新加载存储
-            let options = await dataStack.persistentStoreOptions
-            try coordinator.addPersistentStore(
-                ofType: NSSQLiteStoreType,
-                configurationName: nil,
-                at: storeURL,
-                options: options
-            )
-            
-            // 恢复成功，删除临时备份
-            if fileManager.fileExists(atPath: temporaryBackup.path) {
-                try fileManager.removeItem(at: temporaryBackup)
-            }
-            
-            return true
-        } catch {
-            // 恢复失败，恢复原有存储
-            if fileManager.fileExists(atPath: temporaryBackup.path) {
-                if fileManager.fileExists(atPath: storeURL.path) {
-                    try fileManager.removeItem(at: storeURL)
-                }
-                try fileManager.copyItem(at: temporaryBackup, to: storeURL)
-                try fileManager.removeItem(at: temporaryBackup)
-                
-                // 重新加载原有存储
-                let options = await dataStack.persistentStoreOptions
-                try coordinator.addPersistentStore(
-                    ofType: NSSQLiteStoreType,
-                    configurationName: nil,
-                    at: storeURL,
-                    options: options
-                )
-            }
-            
-            throw error
-        }
-    }
-
-    /// 从备份文件恢复数据到指定位置
-    /// - Parameters:
-    ///   - backupURL: 备份文件的URL
-    ///   - destinationURL: 目标存储URL
-    /// - Throws: 恢复过程中的错误
-    public func restoreBackup(at backupURL: URL, to destinationURL: URL) throws {
-        let fileManager = FileManager.default
-        
-        guard backupURL.pathExtension == "backup" else {
-            throw CoreDataError.invalidBackupFile
-        }
-        
-        // 确保备份文件存在
-        guard fileManager.fileExists(atPath: backupURL.path) else {
-            throw CoreDataError.notFound("备份文件不存在")
-        }
-        
-        // 创建临时目录用于解包
-        let tempDirURL = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try fileManager.createDirectory(at: tempDirURL, withIntermediateDirectories: true)
-        
-        do {
-            // 解压备份文件到临时目录
-            try unzipBackup(from: backupURL, to: tempDirURL)
-            
-            // 如果目标文件存在，则先删除
-            if fileManager.fileExists(atPath: destinationURL.path) {
-                try fileManager.removeItem(at: destinationURL)
-            }
-            
-            // 确保目标目录存在
-            try fileManager.createDirectory(at: destinationURL.deletingLastPathComponent(), 
-                                            withIntermediateDirectories: true)
-            
-            // 将解压的文件复制到目标位置
-            let storeName = destinationURL.deletingPathExtension().lastPathComponent
-            let storeExtension = destinationURL.pathExtension
-            let sourceStoreFiles = try fileManager.contentsOfDirectory(at: tempDirURL, 
-                                                                    includingPropertiesForKeys: nil)
-            
-            for fileURL in sourceStoreFiles {
-                let fileName = fileURL.lastPathComponent
-                if fileName.hasSuffix(".\(storeExtension)") || 
-                   fileName.hasSuffix(".\(storeExtension)-wal") || 
-                   fileName.hasSuffix(".\(storeExtension)-shm") {
-                    let targetURL = destinationURL.deletingLastPathComponent().appendingPathComponent(fileName)
-                    try fileManager.copyItem(at: fileURL, to: targetURL)
+            let backups = try getBackupsSynchronously().sorted { (url1, url2) -> Bool in
+                do {
+                    let date1 = try url1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate ?? Date.distantPast
+                    let date2 = try url2.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate ?? Date.distantPast
+                    return date1 > date2
+                } catch {
+                    return false
                 }
             }
             
-            // 清理临时目录
-            try fileManager.removeItem(at: tempDirURL)
-            
-        } catch {
-            // 清理临时目录
-            if fileManager.fileExists(atPath: tempDirURL.path) {
-                try? fileManager.removeItem(at: tempDirURL)
-            }
-            throw CoreDataError.backupRestoreFailed(error.localizedDescription)
-        }
-    }
-
-    /// 解压备份文件
-    /// - Parameters:
-    ///   - backupURL: 备份文件URL
-    ///   - destination: 目标目录URL
-    private func unzipBackup(from backupURL: URL, to destination: URL) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-        process.arguments = ["-o", backupURL.path, "-d", destination.path]
-        
-        let outputPipe = Pipe()
-        process.standardOutput = outputPipe
-        
-        try process.run()
-        process.waitUntilExit()
-        
-        if process.terminationStatus != 0 {
-            let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: outputData, encoding: .utf8) ?? ""
-            throw CoreDataError.backupRestoreFailed("Unzip failed: \(output)")
-        }
-    }
-    
-    /// 清理过期缓存
-    /// - Returns: 被清理的项目数量
-    public func cleanupExpiredCache() async {
-        // 实际实现中需要扫描并清理过期的缓存文件或数据
-        // 这里提供一个简单的实现
-        let context = await dataStack.newBackgroundContext()
-        var cleanedCount = 0
-        
-        // 这里实现实际的清理逻辑
-        // 例如，清理过期的备份文件
-        do {
-            let backups = try await getBackups()
-            if backups.count > 10 {  // 保留最近的10个备份
-                let oldBackups = Array(backups.suffix(from: 10))
-                for backup in oldBackups {
-                    try FileManager.default.removeItem(at: backup)
-                    cleanedCount += 1
+            // 保留最新的count个备份，删除其余的
+            if backups.count > count {
+                let backupsToDelete = Array(backups.dropFirst(count))
+                for backupURL in backupsToDelete {
+                    try FileManager.default.removeItem(at: backupURL)
                 }
             }
         } catch {
-            // 记录错误但继续执行
-            print("清理缓存时出错: \(error.localizedDescription)")
-        }
-        
-        print("已清理 \(cleanedCount) 个过期项")
-    }
-    
-    /// 获取缓存统计信息
-    /// - Returns: 缓存统计信息
-    public func getStatistics() async throws -> CacheStatistics {
-        let context = await dataStack.newBackgroundContext()
-        
-        return await context.perform {
-            // 统计备份文件数量
-            let backupCount: Int
-            do {
-                let backups = try self.getBackups(for: context.persistentStoreCoordinator!.persistentStores.first!.url!)
-                backupCount = backups.count
-            } catch {
-                backupCount = 0
-            }
-            
-            // 简单的统计
-            return CacheStatistics(hits: backupCount, misses: 0)
+            // 记录错误但不抛出
+            print("清理备份失败: \(error.localizedDescription)")
         }
     }
     
-    /// 为指定存储创建备份
-    /// - Parameter storeURL: 存储的URL
-    /// - Throws: 备份过程中的错误
-    public func backupStore(at storeURL: URL) throws {
+    /// 同步获取备份（内部辅助方法）
+    private func getBackupsSynchronously() throws -> [URL] {
         let fileManager = FileManager.default
+        let backupsURL = try backupsDirectory()
         
-        // 获取备份目录
-        let backupsDir = try backupsDirectory()
+        let backupURLs = try fileManager.contentsOfDirectory(
+            at: backupsURL,
+            includingPropertiesForKeys: [.contentModificationDateKey],
+            options: .skipsHiddenFiles
+        )
         
-        // 创建备份文件名 (使用时间戳)
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyyMMdd_HHmmss"
-        let timestamp = dateFormatter.string(from: Date())
-        let backupFileName = "\(storeURL.deletingPathExtension().lastPathComponent)_\(timestamp).backup"
-        let backupURL = backupsDir.appendingPathComponent(backupFileName)
-        
-        // 确保存储文件存在
-        guard fileManager.fileExists(atPath: storeURL.path) else {
-            throw CoreDataError.storeNotFound("文件不存在: \(storeURL.path)")
-        }
-        
-        // 创建临时目录用于打包
-        let tempDirURL = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try fileManager.createDirectory(at: tempDirURL, withIntermediateDirectories: true)
-        
-        do {
-            // 复制存储文件及相关文件到临时目录
-            let storeDirectory = storeURL.deletingLastPathComponent()
-            let storeName = storeURL.deletingPathExtension().lastPathComponent
-            
-            // 复制主存储文件
-            let mainStoreFileURL = storeURL
-            if fileManager.fileExists(atPath: mainStoreFileURL.path) {
-                try fileManager.copyItem(at: mainStoreFileURL, to: tempDirURL.appendingPathComponent(mainStoreFileURL.lastPathComponent))
-            }
-            
-            // 复制WAL文件
-            let walFileURL = storeDirectory.appendingPathComponent("\(storeName).sqlite-wal")
-            if fileManager.fileExists(atPath: walFileURL.path) {
-                try fileManager.copyItem(at: walFileURL, to: tempDirURL.appendingPathComponent(walFileURL.lastPathComponent))
-            }
-            
-            // 复制SHM文件
-            let shmFileURL = storeDirectory.appendingPathComponent("\(storeName).sqlite-shm")
-            if fileManager.fileExists(atPath: shmFileURL.path) {
-                try fileManager.copyItem(at: shmFileURL, to: tempDirURL.appendingPathComponent(shmFileURL.lastPathComponent))
-            }
-            
-            // 打包临时目录为zip文件
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
-            process.arguments = ["-r", backupURL.path, "."]
-            process.currentDirectoryURL = tempDirURL
-            
-            try process.run()
-            process.waitUntilExit()
-            
-            if process.terminationStatus != 0 {
-                throw CoreDataError.backupFailed("创建备份zip文件失败，错误码: \(process.terminationStatus)")
-            }
-            
-            // 清理临时目录
-            try fileManager.removeItem(at: tempDirURL)
-            
-        } catch {
-            // 清理临时目录
-            if fileManager.fileExists(atPath: tempDirURL.path) {
-                try? fileManager.removeItem(at: tempDirURL)
-            }
-            throw CoreDataError.backupFailed("备份失败: \(error.localizedDescription)")
-        }
+        return backupURLs.filter { $0.pathExtension == "backup" }
+    }
+    
+    /// 解压备份
+    func unzipBackup(from backupURL: URL, to targetDirectoryURL: URL) throws {
+        // 将备份文件复制到目标位置
+        try FileManager.default.copyItem(at: backupURL, to: targetDirectoryURL.appendingPathComponent("store.sqlite"))
+    }
+}
+
+// MARK: - ResourceProviding 协议扩展，提供同步访问方法
+public extension CoreDataResourceManager {
+    /// 同步访问方法
+    nonisolated func mergedObjectModelSync() -> NSManagedObjectModel? {
+        let task = Task { await mergedObjectModel() }
+        return try? task.value
+    }
+    
+    /// 同步访问方法
+    nonisolated func allModelsSync() -> [NSManagedObjectModel] {
+        let task = Task { await allModels() }
+        return (try? task.value) ?? []
     }
 } 

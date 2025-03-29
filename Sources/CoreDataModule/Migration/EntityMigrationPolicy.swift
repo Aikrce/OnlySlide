@@ -13,7 +13,7 @@ public class EntityMigrationPolicy: NSEntityMigrationPolicy, @unchecked Sendable
     
     /// 创建目标实体实例
     /// 在创建目标实例时自定义属性设置和关系处理
-    public override func createDestinationInstances(
+    @objc override open func createDestinationInstances(
         forSource sInstance: NSManagedObject,
         in mapping: NSEntityMapping,
         manager: NSMigrationManager
@@ -34,7 +34,7 @@ public class EntityMigrationPolicy: NSEntityMigrationPolicy, @unchecked Sendable
         do {
             try customMigrate(source: sInstance, destination: dInstance, mapping: mapping, manager: manager)
         } catch {
-            logger.error("Error during custom migration for entity \(mapping.entityName ?? "unknown"): \(error.localizedDescription)")
+            logger.error("Error during custom migration for entity \(mapping.name ?? "unknown"): \(error.localizedDescription)")
             throw error
         }
     }
@@ -59,7 +59,7 @@ public class EntityMigrationPolicy: NSEntityMigrationPolicy, @unchecked Sendable
     
     /// 创建关系
     /// 可以自定义关系创建逻辑
-    public override func createRelationships(
+    @objc override open func createRelationships(
         forDestination dInstance: NSManagedObject,
         in mapping: NSEntityMapping,
         manager: NSMigrationManager
@@ -70,7 +70,7 @@ public class EntityMigrationPolicy: NSEntityMigrationPolicy, @unchecked Sendable
             // 可以在此处添加自定义关系处理
             try customCreateRelationships(forDestination: dInstance, in: mapping, manager: manager)
         } catch {
-            logger.error("Error creating relationships for entity \(mapping.entityName ?? "unknown"): \(error.localizedDescription)")
+            logger.error("Error creating relationships for entity \(mapping.name ?? "unknown"): \(error.localizedDescription)")
             throw error
         }
     }
@@ -93,7 +93,7 @@ public class EntityMigrationPolicy: NSEntityMigrationPolicy, @unchecked Sendable
     ///   - source: 源实例
     ///   - manager: 迁移管理器
     /// - Returns: 生成的属性值
-    public override func value(
+    open func value(
         forPropertyName propertyName: String,
         in source: NSManagedObject,
         withMigrationManager manager: NSMigrationManager
@@ -104,8 +104,8 @@ public class EntityMigrationPolicy: NSEntityMigrationPolicy, @unchecked Sendable
                 return customValue
             }
             
-            // 如果没有自定义值，使用父类实现
-            return try super.value(forPropertyName: propertyName, in: source, withMigrationManager: manager)
+            // 如果没有自定义值，默认返回nil
+            return nil
         } catch {
             logger.error("Error generating value for property \(propertyName): \(error.localizedDescription)")
             throw error
@@ -127,7 +127,7 @@ public class EntityMigrationPolicy: NSEntityMigrationPolicy, @unchecked Sendable
     
     /// 迁移结束回调
     /// 可以在迁移完成后执行清理或验证操作
-    public override func endInstanceCreation(
+    @objc override open func endInstanceCreation(
         forMapping mapping: NSEntityMapping,
         manager: NSMigrationManager
     ) throws {
@@ -137,7 +137,7 @@ public class EntityMigrationPolicy: NSEntityMigrationPolicy, @unchecked Sendable
             // 执行自定义结束处理
             try customEndInstanceCreation(forMapping: mapping, manager: manager)
         } catch {
-            logger.error("Error during end instance creation for entity \(mapping.entityName ?? "unknown"): \(error.localizedDescription)")
+            logger.error("Error during end instance creation for entity \(mapping.name ?? "unknown"): \(error.localizedDescription)")
             throw error
         }
     }
@@ -154,17 +154,15 @@ public class EntityMigrationPolicy: NSEntityMigrationPolicy, @unchecked Sendable
     /// - Parameters:
     ///   - mapping: 实体映射
     ///   - manager: 迁移管理器
-    public override func beginValidation(
+    open func beginValidation(
         forMapping mapping: NSEntityMapping,
         manager: NSMigrationManager
     ) throws {
         do {
-            try super.beginValidation(forMapping: mapping, manager: manager)
-            
             // 执行自定义验证开始处理
             try customBeginValidation(forMapping: mapping, manager: manager)
         } catch {
-            logger.error("Error during begin validation for entity \(mapping.entityName ?? "unknown"): \(error.localizedDescription)")
+            logger.error("Error during begin validation for entity \(mapping.name ?? "unknown"): \(error.localizedDescription)")
             throw error
         }
     }
@@ -181,17 +179,15 @@ public class EntityMigrationPolicy: NSEntityMigrationPolicy, @unchecked Sendable
     /// - Parameters:
     ///   - mapping: 实体映射
     ///   - manager: 迁移管理器
-    public override func endValidation(
+    open func endValidation(
         forMapping mapping: NSEntityMapping,
         manager: NSMigrationManager
     ) throws {
         do {
-            try super.endValidation(forMapping: mapping, manager: manager)
-            
             // 执行自定义验证结束处理
             try customEndValidation(forMapping: mapping, manager: manager)
         } catch {
-            logger.error("Error during end validation for entity \(mapping.entityName ?? "unknown"): \(error.localizedDescription)")
+            logger.error("Error during end validation for entity \(mapping.name ?? "unknown"): \(error.localizedDescription)")
             throw error
         }
     }
@@ -209,7 +205,7 @@ public class EntityMigrationPolicy: NSEntityMigrationPolicy, @unchecked Sendable
     ///   - fetchRequest: 查询请求
     ///   - context: 上下文
     /// - Returns: 查询结果
-    public override func performCustomQuery(
+    open func performCustomQuery(
         _ fetchRequest: NSPersistentStoreRequest,
         in context: NSManagedObjectContext
     ) throws -> Any {
@@ -219,8 +215,8 @@ public class EntityMigrationPolicy: NSEntityMigrationPolicy, @unchecked Sendable
                 return result
             }
             
-            // 如果没有自定义处理，使用父类实现
-            return try super.performCustomQuery(fetchRequest, in: context)
+            // 如果没有自定义处理，抛出错误
+            throw NSError(domain: "EntityMigrationPolicy", code: 404, userInfo: [NSLocalizedDescriptionKey: "Custom query not handled"])
         } catch {
             logger.error("Error performing custom query: \(error.localizedDescription)")
             throw error

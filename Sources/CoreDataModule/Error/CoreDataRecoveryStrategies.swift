@@ -2,20 +2,20 @@ import Foundation
 import CoreData
 import os
 
-/// 定义恢复结果
-public enum RecoveryResult: Sendable {
-    /// 恢复成功
-    case success
-    /// 恢复失败
-    case failure(Error)
+// 引用CrossPlatformErrorHandling中的RecoveryResult类型
+import CoreDataModule
+
+// 扩展CrossPlatformErrorHandling中的RecoveryResult，增加自定义case
+extension RecoveryResult {
     /// 需要用户交互
-    case requiresUserInteraction
+    static var requiresUserInteraction: Self { .notSupported }
+    
     /// 恢复部分成功
-    case partialSuccess(String)
+    static func partialSuccess(_ message: String) -> Self { .success }
 }
 
 /// 错误恢复策略协议
-public protocol RecoveryStrategy: Sendable {
+public protocol RecoveryStrategyExecutor: Sendable {
     /// 恢复策略名称
     var name: String { get }
     
@@ -46,7 +46,7 @@ public final class CoreDataRecoveryExecutor: @unchecked Sendable {
     private let logger = Logger(subsystem: "com.onlyslide.coredatamodule", category: "Recovery")
     
     /// 注册的恢复策略
-    private var strategies: [any RecoveryStrategy & Sendable] = []
+    private var strategies: [any RecoveryStrategyExecutor & Sendable] = []
     
     // MARK: - 初始化
     
@@ -58,7 +58,7 @@ public final class CoreDataRecoveryExecutor: @unchecked Sendable {
     
     /// 注册恢复策略
     /// - Parameter strategy: 恢复策略
-    public func register(strategy: some RecoveryStrategy & Sendable) {
+    public func register(strategy: some RecoveryStrategyExecutor & Sendable) {
         strategies.append(strategy)
         logger.debug("已注册恢复策略: \(strategy.name)")
     }
@@ -90,10 +90,8 @@ public final class CoreDataRecoveryExecutor: @unchecked Sendable {
             case .success:
                 logger.info("恢复成功: \(strategy.name)")
                 return result
-            case .partialSuccess(let message):
-                logger.info("部分恢复: \(strategy.name) - \(message)")
-                return result
-            case .requiresUserInteraction:
+            case .notSupported:
+                // 处理需要用户交互的情况
                 logger.info("需要用户交互: \(strategy.name)")
                 return result
             case .failure(let recoveryError):
@@ -123,7 +121,7 @@ public final class CoreDataRecoveryExecutor: @unchecked Sendable {
 
 /// 存储重置恢复策略
 /// 用于处理持久化存储损坏的情况
-final class StoreResetRecoveryStrategy: RecoveryStrategy {
+final class StoreResetRecoveryStrategy: RecoveryStrategyExecutor {
     let name = "StoreResetRecovery"
     
     func canHandle(_ error: Error) -> Bool {
@@ -154,7 +152,7 @@ final class StoreResetRecoveryStrategy: RecoveryStrategy {
         
         do {
             // 创建备份
-            try CoreDataResourceManager.shared.backupStore(at: storeURL)
+            try await CoreDataResourceManager.shared.backupStore(at: storeURL)
             logger.info("已创建存储备份")
             
             // 删除现有存储
@@ -175,7 +173,7 @@ final class StoreResetRecoveryStrategy: RecoveryStrategy {
 
 /// 上下文重置恢复策略
 /// 用于处理上下文状态不一致的情况
-final class ContextResetRecoveryStrategy: RecoveryStrategy {
+final class ContextResetRecoveryStrategy: RecoveryStrategyExecutor {
     let name = "ContextResetRecovery"
     
     func canHandle(_ error: Error) -> Bool {
@@ -213,7 +211,7 @@ final class ContextResetRecoveryStrategy: RecoveryStrategy {
 
 /// 迁移恢复策略
 /// 用于处理迁移失败的情况
-final class MigrationRecoveryStrategy: RecoveryStrategy {
+final class MigrationRecoveryStrategy: RecoveryStrategyExecutor {
     let name = "MigrationRecovery"
     
     func canHandle(_ error: Error) -> Bool {
@@ -242,7 +240,7 @@ final class MigrationRecoveryStrategy: RecoveryStrategy {
         
         do {
             // 创建备份
-            try CoreDataResourceManager.shared.backupStore(at: storeURL)
+            try await CoreDataResourceManager.shared.backupStore(at: storeURL)
             logger.info("已创建存储备份")
             
             // 尝试执行手动迁移
@@ -263,7 +261,7 @@ final class MigrationRecoveryStrategy: RecoveryStrategy {
 
 /// 备份恢复策略
 /// 用于从备份恢复数据
-final class BackupRestorationStrategy: RecoveryStrategy {
+final class BackupRestorationStrategy: RecoveryStrategyExecutor {
     let name = "BackupRestoration"
     
     func canHandle(_ error: Error) -> Bool {
@@ -290,8 +288,8 @@ final class BackupRestorationStrategy: RecoveryStrategy {
         }
         
         // 获取可用的备份
-        let resourceManager = CoreDataResourceManager.shared
-        let backups = resourceManager.getBackups(for: storeURL)
+        let resourceManager = await CoreDataResourceManager.shared
+        let backups = await resourceManager.getBackups(for: storeURL)
         
         if backups.isEmpty {
             logger.warning("没有可用备份")
@@ -306,7 +304,7 @@ final class BackupRestorationStrategy: RecoveryStrategy {
         
         do {
             // 恢复备份
-            try resourceManager.restoreBackup(at: latestBackup, to: storeURL)
+            try await resourceManager.restoreBackup(at: latestBackup, to: storeURL)
             logger.info("已从备份恢复: \(latestBackup.lastPathComponent)")
             
             return .success
@@ -319,7 +317,7 @@ final class BackupRestorationStrategy: RecoveryStrategy {
 
 /// 验证器恢复策略
 /// 用于处理验证错误
-final class ValidatorRecoveryStrategy: RecoveryStrategy, @unchecked Sendable {
+final class ValidatorRecoveryStrategy: RecoveryStrategyExecutor, @unchecked Sendable {
     let name = "ValidatorRecovery"
     
     func canHandle(_ error: Error) -> Bool {
@@ -355,25 +353,10 @@ final class ValidatorRecoveryStrategy: RecoveryStrategy, @unchecked Sendable {
 }
 
 /// 错误恢复策略协议
-@preconcurrency public protocol ErrorRecoveryStrategy: Sendable {
+public protocol LocalErrorRecoveryStrategy: Sendable {
     /// 执行恢复策略
     /// - Parameter completion: 完成回调，传递是否成功
-    func execute(completion: @escaping @Sendable (Bool) -> Void)
-    
-    /// 异步执行恢复策略
-    /// - Returns: 是否成功恢复
-    func execute() async -> Bool
-}
-
-/// 默认扩展：提供基于回调版本的异步实现
-public extension ErrorRecoveryStrategy {
-    func execute() async -> Bool {
-        return await withCheckedContinuation { continuation in
-            execute { success in
-                continuation.resume(returning: success)
-            }
-        }
-    }
+    func execute(completion: @escaping @Sendable (Bool) -> Void) async
 }
 
 /// Core Data恢复策略提供者
@@ -387,7 +370,7 @@ public final class CoreDataRecoveryStrategies {
     /// 为指定错误获取恢复策略
     /// - Parameter error: CoreData错误
     /// - Returns: 适用的恢复策略或nil
-    public func strategyFor(error: CoreDataError) -> ErrorRecoveryStrategy? {
+    public func strategyFor(error: CoreDataError) -> LocalErrorRecoveryStrategy? {
         switch error {
         case .storeNotFound:
             return StoreRecreationStrategy()
@@ -416,46 +399,42 @@ public final class CoreDataRecoveryStrategies {
 
 /// 存储重建策略
 @MainActor
-private class StoreRecreationStrategy: ErrorRecoveryStrategy {
-    func execute(completion: @escaping @Sendable (Bool) -> Void) {
+private class StoreRecreationStrategy: LocalErrorRecoveryStrategy {
+    func execute(completion: @escaping @Sendable (Bool) -> Void) async {
         // 实现存储重建逻辑
         let coreDataStack = CoreDataStack.shared
         
-        Task {
-            do {
-                try await coreDataStack.recreateStore()
-                completion(true)
-            } catch {
-                CoreLogger.error("重建存储失败: \(error.localizedDescription)", category: "Recovery")
-                completion(false)
-            }
+        do {
+            try await coreDataStack.recreateStore()
+            completion(true)
+        } catch {
+            CoreLogger.error("重建存储失败: \(error.localizedDescription)", category: "Recovery")
+            completion(false)
         }
     }
 }
 
 /// 存储重置策略
 @MainActor
-private class StoreResetStrategy: ErrorRecoveryStrategy {
-    func execute(completion: @escaping @Sendable (Bool) -> Void) {
+private class StoreResetStrategy: LocalErrorRecoveryStrategy {
+    func execute(completion: @escaping @Sendable (Bool) -> Void) async {
         // 实现存储重置逻辑
         let coreDataStack = CoreDataStack.shared
         
-        Task {
-            do {
-                try await coreDataStack.resetStore()
-                completion(true)
-            } catch {
-                CoreLogger.error("重置存储失败: \(error.localizedDescription)", category: "Recovery")
-                completion(false)
-            }
+        do {
+            try await coreDataStack.resetStore()
+            completion(true)
+        } catch {
+            CoreLogger.error("重置存储失败: \(error.localizedDescription)", category: "Recovery")
+            completion(false)
         }
     }
 }
 
 /// 上下文重置策略
 @MainActor
-private class ContextResetStrategy: ErrorRecoveryStrategy {
-    func execute(completion: @escaping @Sendable (Bool) -> Void) {
+private final class ContextResetStrategy: LocalErrorRecoveryStrategy {
+    func execute(completion: @escaping @Sendable (Bool) -> Void) async {
         // 实现上下文重置逻辑
         let coreDataStack = CoreDataStack.shared
         coreDataStack.resetContext()
@@ -465,82 +444,75 @@ private class ContextResetStrategy: ErrorRecoveryStrategy {
 
 /// 保存重试策略
 @MainActor
-private class SaveRetryStrategy: ErrorRecoveryStrategy {
-    func execute(completion: @escaping @Sendable (Bool) -> Void) {
+private final class SaveRetryStrategy: LocalErrorRecoveryStrategy {
+    func execute(completion: @escaping @Sendable (Bool) -> Void) async {
         // 实现保存重试逻辑
         let coreDataStack = CoreDataStack.shared
         let context = coreDataStack.mainContext
         
-        Task {
-            do {
-                try context.save()
-                completion(true)
-            } catch {
-                CoreLogger.error("重试保存失败: \(error.localizedDescription)", category: "Recovery")
-                completion(false)
-            }
+        do {
+            try context.save()
+            completion(true)
+        } catch {
+            CoreLogger.error("重试保存失败: \(error.localizedDescription)", category: "Recovery")
+            completion(false)
         }
     }
 }
 
 /// 同步恢复策略
-private class SyncRecoveryStrategy: ErrorRecoveryStrategy {
-    func execute(completion: @escaping @Sendable (Bool) -> Void) {
+private final class SyncRecoveryStrategy: LocalErrorRecoveryStrategy, @unchecked Sendable {
+    func execute(completion: @escaping @Sendable (Bool) -> Void) async {
         // 重置同步状态逻辑
         CoreLogger.info("执行同步恢复策略", category: "Recovery")
         
         // 模拟恢复过程
-        DispatchQueue.global().asyncAfter(deadline: .now() + 1.0) {
-            // 在实际实现中，这里应该是真正的恢复逻辑
-            CoreLogger.info("同步状态已重置", category: "Recovery")
-            completion(true)
-        }
+        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1秒延迟
+        // 在实际实现中，这里应该是真正的恢复逻辑
+        CoreLogger.info("同步状态已重置", category: "Recovery")
+        completion(true)
     }
 }
 
 /// 迁移恢复策略
-private class MigrationRecoveryStrategyImpl: ErrorRecoveryStrategy {
-    func execute(completion: @escaping @Sendable (Bool) -> Void) {
+private final class MigrationRecoveryStrategyImpl: LocalErrorRecoveryStrategy, @unchecked Sendable {
+    func execute(completion: @escaping @Sendable (Bool) -> Void) async {
         CoreLogger.info("执行迁移恢复策略", category: "Recovery")
         
         // 模拟恢复过程
-        DispatchQueue.global().asyncAfter(deadline: .now() + 1.0) {
-            // 在实际实现中，这里应该是真正的恢复逻辑
-            CoreLogger.info("迁移已重置", category: "Recovery")
-            completion(true)
-        }
+        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1秒延迟
+        // 在实际实现中，这里应该是真正的恢复逻辑
+        CoreLogger.info("迁移已重置", category: "Recovery")
+        completion(true)
     }
 }
 
 /// 备份恢复策略
-private class BackupRecoveryStrategy: ErrorRecoveryStrategy {
-    func execute(completion: @escaping @Sendable (Bool) -> Void) {
+private final class BackupRecoveryStrategy: LocalErrorRecoveryStrategy, @unchecked Sendable {
+    func execute(completion: @escaping @Sendable (Bool) -> Void) async {
         CoreLogger.info("执行备份恢复策略", category: "Recovery")
         
         // 模拟恢复过程
-        DispatchQueue.global().asyncAfter(deadline: .now() + 1.0) {
-            // 在实际实现中，这里应该是真正的恢复逻辑
-            CoreLogger.info("备份问题已处理", category: "Recovery")
-            completion(true)
-        }
+        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1秒延迟
+        // 在实际实现中，这里应该是真正的恢复逻辑
+        CoreLogger.info("备份问题已处理", category: "Recovery")
+        completion(true)
     }
 }
 
 /// 合并冲突解决策略
 @MainActor
-private class MergeConflictResolutionStrategy: ErrorRecoveryStrategy {
-    func execute(completion: @escaping @Sendable (Bool) -> Void) {
+private final class MergeConflictResolutionStrategy: LocalErrorRecoveryStrategy {
+    nonisolated func execute(completion: @escaping @Sendable (Bool) -> Void) async {
         CoreLogger.info("执行合并冲突解决策略", category: "Recovery")
         
         // 获取Core Data栈
-        let coreDataStack = CoreDataStack.shared
-        let context = coreDataStack.mainContext
-        
-        // 丢弃本地更改，接受最新的版本
-        Task {
-            await context.perform {
-                context.rollback()
-            }
+        await MainActor.run {
+            let coreDataStack = CoreDataStack.shared
+            let context = coreDataStack.mainContext
+            
+            // 丢弃本地更改，接受最新的版本
+            context.rollback()
             
             CoreLogger.info("合并冲突已解决（回滚本地更改）", category: "Recovery")
             completion(true)

@@ -14,7 +14,7 @@ import os
     private let logger = Logger(subsystem: "com.onlyslide.coredatamodule", category: "CoreDataManager")
     
     /// 持久化容器
-    private lazy var persistentContainer: NSPersistentContainer = {
+    internal lazy var persistentContainer: NSPersistentContainer = {
         let container = NSPersistentContainer(name: "OnlySlide")
         container.loadPersistentStores { description, error in
             if let error = error {
@@ -23,8 +23,8 @@ import os
         }
         // 启用自动合并策略
         container.viewContext.automaticallyMergesChangesFromParent = true
-        // 设置合并策略
-        container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+        // 设置合并策略 - 使用NSMergePolicy.mergeByPropertyObjectTrump而不是全局共享变量
+        container.viewContext.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
         return container
     }()
     
@@ -43,7 +43,7 @@ import os
     /// - Returns: 新的后台上下文
     public func newBackgroundContext() -> NSManagedObjectContext {
         let context = persistentContainer.newBackgroundContext()
-        context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+        context.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
         return context
     }
     
@@ -186,13 +186,9 @@ import os
         Task {
             do {
                 let migrationManager = CoreDataMigrationManager.shared
-                let didMigrate = try await migrationManager.performMigration(at: storeURL)
+                try await migrationManager.performMigration(at: storeURL)
                 
-                if didMigrate {
-                    logger.info("数据迁移成功完成")
-                } else {
-                    logger.info("无需迁移")
-                }
+                logger.info("数据迁移成功完成")
                 
                 // 在主线程调用完成回调
                 await MainActor.run {
@@ -207,6 +203,8 @@ import os
                 }
             }
         }
+        
+        // 注意：这个方法不返回布尔值，而是通过回调通知完成状态
     }
     
     /// 异步执行数据迁移
@@ -220,7 +218,10 @@ import os
         let migrationManager = CoreDataMigrationManager.shared
         
         do {
-            return try await migrationManager.performMigration(at: storeURL)
+            // 尝试执行迁移
+            try await migrationManager.performMigration(at: storeURL)
+            logger.info("数据迁移成功完成")
+            return true  // 返回true表示已执行迁移
         } catch {
             logger.error("数据迁移失败: \(error.localizedDescription)")
             throw error

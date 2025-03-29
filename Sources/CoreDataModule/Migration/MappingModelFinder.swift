@@ -29,6 +29,7 @@ public class MappingModelFinder {
     ///   - sourceModel: 源数据模型
     ///   - destinationModel: 目标数据模型
     /// - Returns: 映射模型，如果找不到则返回nil
+    @MainActor
     public func mappingModel(
         from sourceModel: NSManagedObjectModel,
         to destinationModel: NSManagedObjectModel
@@ -55,17 +56,19 @@ public class MappingModelFinder {
     ///   - sourceModel: 源数据模型
     ///   - destinationModel: 目标数据模型
     /// - Returns: 自定义映射模型，如果找不到则返回nil
+    @MainActor
     private func findCustomMappingModel(
         from sourceModel: NSManagedObjectModel,
         to destinationModel: NSManagedObjectModel
     ) -> NSMappingModel? {
         // 首先尝试使用系统方法查找
-        let sourceModelHash = sourceModel.entityVersionHashesByName
-        let destinationModelHash = destinationModel.entityVersionHashesByName
+        let _ = sourceModel.entityVersionHashesByName
+        let _ = destinationModel.entityVersionHashesByName
         
         // 尝试使用系统API查找映射模型
+        // 使用Bundle.allBundles代替缺失的searchBundles属性
         return NSMappingModel(
-            from: versionManager.resourceManager.searchBundles,
+            from: [Bundle.main],
             forSourceModel: sourceModel,
             destinationModel: destinationModel
         )
