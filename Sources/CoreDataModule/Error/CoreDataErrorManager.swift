@@ -4,7 +4,7 @@ import CoreData
 import os
 
 /// 定义错误处理策略
-public enum ErrorHandlingStrategy {
+public enum ErrorHandlingStrategy: Sendable {
     /// 自动重试
     case retry(maxAttempts: Int, delay: TimeInterval)
     /// 备份和恢复
@@ -183,10 +183,18 @@ public final class CoreDataErrorManager: @unchecked Sendable {
                 return .critical
             case .validationFailed, .invalidManagedObject:
                 return .warning
+            case .syncSetupError, .syncStartError, .syncStopError, .syncProcessError, .invalidSyncState, .networkUnavailable:
+                return .error
+            case .conversionError, .invalidData:
+                return .warning
+            case .backupFailed, .backupDirectoryError, .invalidBackupFile, .backupRestoreFailed:
+                return .error
+            case .persistentStoreCoordinatorError, .managedObjectContextError, .objectNotFound, .saveError:
+                return .error
+            case .custom:
+                return .warning
             case .unknown:
                 return .error
-            default:
-                return .warning
             }
         } else if (error as NSError).domain == NSCocoaErrorDomain {
             return .error
@@ -217,7 +225,7 @@ public final class CoreDataErrorManager: @unchecked Sendable {
         // 尝试获取恢复策略
         if let strategy = recoveryProvider.strategyFor(error: coreDataError) {
             // 执行恢复策略
-            strategy.execute { success in
+            strategy.execute { [self] success in
                 if success {
                     self.logger.info("成功恢复 \(context) 的错误")
                 } else {
@@ -455,6 +463,15 @@ public final class CoreDataErrorManager: @unchecked Sendable {
             case .validationFailed, .invalidManagedObject:
                 // 数据验证错误
                 logger.info("默认策略: 数据验证失败，提供修复建议")
+                
+            case .persistentStoreCoordinatorError, .managedObjectContextError, 
+                 .objectNotFound, .saveError, .syncSetupError, .syncStartError, 
+                 .syncStopError, .syncProcessError, .invalidSyncState, 
+                 .networkUnavailable, .conversionError, .invalidData, 
+                 .backupFailed, .backupDirectoryError, .invalidBackupFile, 
+                 .backupRestoreFailed, .custom:
+                // 其他错误处理
+                logger.info("默认策略: 其他错误，根据上下文处理")
                 
             case .unknown:
                 // 未知错误处理

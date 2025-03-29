@@ -1,12 +1,12 @@
 import Foundation
-import Combine
+@preconcurrency import Combine
 import CoreData
 import os
 
 // MARK: - Error Handling Protocols
 
 /// 错误处理服务协议
-public protocol ErrorHandlingService: Sendable {
+public protocol ErrorHandlingProtocol: Sendable {
     /// 处理错误
     func handle(_ error: Error, context: String, file: String, line: Int, function: String)
     
@@ -26,29 +26,29 @@ public protocol RecoveryService: Sendable {
     func attemptRecovery(from error: Error, context: String) async -> RecoveryResult
     
     /// 注册恢复策略
-    func register(strategy: RecoveryStrategy)
+    mutating func register(strategy: RecoveryStrategy)
 }
 
 /// 错误策略注册协议
 public protocol ErrorStrategyRegistry: Sendable {
     /// 注册错误处理策略
-    func registerStrategy(_ strategy: ErrorHandlingStrategy, for errorType: String, context: String?)
+    mutating func registerStrategy(_ strategy: ErrorHandlingStrategy, for errorType: String, context: String?)
     
     /// 重置错误统计
-    func resetErrorStatistics()
+    mutating func resetErrorStatistics()
 }
 
 // MARK: - Enhanced Error Handling Manager
 
 /// 增强版错误处理管理器
 /// 使用值类型和依赖注入
-public struct EnhancedErrorHandler: ErrorHandlingService, ErrorStrategyRegistry {
+public struct EnhancedErrorHandler: ErrorHandlingProtocol, ErrorStrategyRegistry {
     // MARK: - Dependencies
     
     private let logger: Logger
     private let converter: ErrorConverter
     private let publisher: PassthroughSubject<(Error, String), Never>
-    private let strategyResolver: ErrorStrategyResolver
+    private var strategyResolver: ErrorStrategyResolver
     
     // MARK: - Initialization
     
@@ -76,13 +76,13 @@ public struct EnhancedErrorHandler: ErrorHandlingService, ErrorStrategyRegistry 
         return EnhancedErrorHandler()
     }
     
-    // MARK: - ErrorHandlingService Implementation
+    // MARK: - ErrorHandlingProtocol Implementation
     
     public var errorPublisher: AnyPublisher<(Error, String), Never> {
         return publisher.eraseToAnyPublisher()
     }
     
-    public func handle(_ error: Error, context: String, file: String = #file, line: Int = #line, function: String = #function) {
+    public mutating func handle(_ error: Error, context: String, file: String = #file, line: Int = #line, function: String = #function) {
         // 记录错误
         logError(error, context: context, file: file, line: line, function: function)
         
@@ -112,11 +112,11 @@ public struct EnhancedErrorHandler: ErrorHandlingService, ErrorStrategyRegistry 
     
     // MARK: - ErrorStrategyRegistry Implementation
     
-    public func registerStrategy(_ strategy: ErrorHandlingStrategy, for errorType: String, context: String? = nil) {
+    public mutating func registerStrategy(_ strategy: ErrorHandlingStrategy, for errorType: String, context: String? = nil) {
         strategyResolver.registerStrategy(strategy, for: errorType, context: context)
     }
     
-    public func resetErrorStatistics() {
+    public mutating func resetErrorStatistics() {
         strategyResolver.resetErrorCounts()
     }
     
@@ -155,6 +155,13 @@ public struct EnhancedErrorHandler: ErrorHandlingService, ErrorStrategyRegistry 
                 return .critical
             case .validationFailed, .invalidManagedObject:
                 return .warning
+            case .persistentStoreCoordinatorError, .managedObjectContextError, 
+                 .objectNotFound, .saveError, .syncSetupError, .syncStartError, 
+                 .syncStopError, .syncProcessError, .invalidSyncState, 
+                 .networkUnavailable, .conversionError, .invalidData, 
+                 .backupFailed, .backupDirectoryError, .invalidBackupFile, 
+                 .backupRestoreFailed, .custom:
+                return .error
             case .unknown:
                 return .error
             }
@@ -359,6 +366,15 @@ public struct EnhancedErrorHandler: ErrorHandlingService, ErrorStrategyRegistry 
         // 由于没有具体的实现，这里只返回部分成功
         return .partialSuccess("数据已恢复到上一个可用状态")
     }
+    
+    /// 获取错误处理策略
+    /// - Parameters:
+    ///   - error: 错误对象
+    ///   - context: 错误上下文
+    /// - Returns: 错误处理策略
+    private func getStrategy(for error: Error, context: String) -> ErrorHandlingStrategy {
+        return strategyResolver.getStrategy(for: error, context: context)
+    }
 }
 
 // MARK: - Enhanced Recovery Service
@@ -368,7 +384,7 @@ public struct EnhancedRecoveryService: RecoveryService {
     // MARK: - Properties
     
     private let logger: Logger
-    private var strategies: [RecoveryStrategy] = []
+    private var strategies: [any RecoveryStrategy & Sendable] = []
     
     // MARK: - Initialization
     
@@ -387,7 +403,7 @@ public struct EnhancedRecoveryService: RecoveryService {
     
     // MARK: - RecoveryService Implementation
     
-    public func register(strategy: RecoveryStrategy) {
+    public mutating func register(strategy: RecoveryStrategy) {
         strategies.append(strategy)
         logger.debug("已注册恢复策略: \(strategy.name)")
     }
@@ -433,7 +449,7 @@ public struct EnhancedRecoveryService: RecoveryService {
     
     // MARK: - Private Methods
     
-    private func registerDefaultStrategies() {
+    private mutating func registerDefaultStrategies() {
         register(strategy: StoreResetRecoveryStrategy())
         register(strategy: ContextResetRecoveryStrategy())
         register(strategy: MigrationRecoveryStrategy())
@@ -445,9 +461,12 @@ public struct EnhancedRecoveryService: RecoveryService {
 // MARK: - Error Converter
 
 /// 错误转换器
-public struct ErrorConverter {
+public struct ErrorConverter: Sendable {
+    /// 初始化
+    public init() {}
+    
     /// 转换错误
-    func convert(_ error: Error) -> CoreDataError {
+    public func convert(_ error: Error) -> CoreDataError {
         if let coreDataError = error as? CoreDataError {
             return coreDataError
         } else if let nsError = error as? NSError {
@@ -484,42 +503,42 @@ public struct ErrorConverter {
             // 验证错误
             let entity = error.userInfo["NSValidationErrorKey"] as? String ?? "未知实体"
             let value = error.userInfo["NSValidationErrorValue"] ?? "未知值"
-            return .validationFailed(reason: "实体: \(entity), 值: \(value), 错误: \(error.localizedDescription)")
+            return .validationFailed("实体: \(entity), 值: \(value), 错误: \(error.localizedDescription)")
             
         case NSPersistentStoreErrorMinimum...NSPersistentStoreErrorMaximum:
             // 持久化存储错误
             if error.code == NSPersistentStoreIncompatibleVersionHashError {
-                return .migrationFailed(reason: "存储版本不兼容: \(error.localizedDescription)")
+                return .migrationFailed("存储版本不兼容: \(error.localizedDescription)")
             } else if error.code == NSPersistentStoreOpenError {
-                return .storeNotFound(reason: "无法打开存储: \(error.localizedDescription)")
+                return .storeNotFound("无法打开存储: \(error.localizedDescription)")
             } else if error.code == NSPersistentStoreSaveError {
-                return .saveFailed(reason: error.localizedDescription)
+                return .saveFailed("保存失败: \(error.localizedDescription)")
             } else {
-                return .saveFailed(reason: error.localizedDescription)
+                return .saveFailed("存储操作失败: \(error.localizedDescription)")
             }
             
         case NSManagedObjectConstraintErrorMinimum...NSManagedObjectConstraintErrorMaximum:
             // 约束错误
-            return .saveFailed(reason: error.localizedDescription)
+            return .saveFailed("约束错误: \(error.localizedDescription)")
             
         case NSCoreDataErrorMinimum...NSCoreDataErrorMaximum:
             // 其他CoreData错误
             if error.code == NSManagedObjectValidationError {
-                return .validationFailed(reason: error.localizedDescription)
+                return .validationFailed("验证错误: \(error.localizedDescription)")
             } else if error.code == NSManagedObjectContextLockingError {
-                return .saveFailed(reason: error.localizedDescription)
+                return .saveFailed("上下文锁定错误: \(error.localizedDescription)")
             } else if error.code == NSPersistentStoreCoordinatorLockingError {
-                return .saveFailed(reason: error.localizedDescription)
+                return .saveFailed("存储协调器锁定错误: \(error.localizedDescription)")
             } else if error.code == NSManagedObjectMergeError {
-                return .mergeConflict(reason: error.localizedDescription)
+                return .mergeConflict("合并错误: \(error.localizedDescription)")
             } else if error.code == NSManagedObjectReferentialIntegrityError {
-                return .deleteFailed(reason: error.localizedDescription)
+                return .deleteFailed("引用完整性错误: \(error.localizedDescription)")
             } else if error.code == NSMigrationError {
-                return .migrationFailed(reason: error.localizedDescription)
+                return .migrationFailed("迁移错误: \(error.localizedDescription)")
             } else if error.code == NSMigrationMissingSourceModelError {
-                return .modelNotFound(reason: "源模型未找到: \(error.localizedDescription)")
+                return .modelNotFound("源模型未找到: \(error.localizedDescription)")
             } else if error.code == NSMigrationMissingMappingModelError {
-                return .modelNotFound(reason: "映射模型未找到: \(error.localizedDescription)")
+                return .modelNotFound("映射模型未找到: \(error.localizedDescription)")
             } else {
                 return .unknown(error)
             }
@@ -528,9 +547,9 @@ public struct ErrorConverter {
             // 尝试根据错误域进一步分类
             if error.domain == NSCocoaErrorDomain {
                 if error.code == NSFileNoSuchFileError || error.code == NSFileReadNoSuchFileError {
-                    return .storeNotFound(reason: "文件不存在: \(error.localizedDescription)")
+                    return .storeNotFound("文件不存在: \(error.localizedDescription)")
                 } else if error.code == NSFileReadUnknownError || error.code == NSFileWriteUnknownError {
-                    return .saveFailed(reason: error.localizedDescription)
+                    return .saveFailed("文件读写错误: \(error.localizedDescription)")
                 }
             }
             
@@ -542,7 +561,7 @@ public struct ErrorConverter {
 // MARK: - Error Strategy Resolver
 
 /// 错误策略解析器
-public struct ErrorStrategyResolver {
+public struct ErrorStrategyResolver: Sendable {
     // MARK: - Properties
     
     /// 注册的错误策略
@@ -568,7 +587,7 @@ public struct ErrorStrategyResolver {
     ///   - strategy: 错误处理策略
     ///   - errorType: 错误类型
     ///   - context: 错误上下文
-    mutating func registerStrategy(_ strategy: ErrorHandlingStrategy, for errorType: String, context: String? = nil) {
+    public mutating func registerStrategy(_ strategy: ErrorHandlingStrategy, for errorType: String, context: String? = nil) {
         let key = createStrategyKey(errorType: errorType, context: context)
         strategies[key] = strategy
     }
@@ -578,7 +597,7 @@ public struct ErrorStrategyResolver {
     ///   - error: 错误对象
     ///   - context: 错误上下文
     /// - Returns: 错误处理策略
-    func getStrategy(for error: Error, context: String) -> ErrorHandlingStrategy {
+    public func getStrategy(for error: Error, context: String) -> ErrorHandlingStrategy {
         // 尝试获取特定错误和上下文的策略
         let errorTypeString: String
         if let coreDataError = error as? CoreDataError {
@@ -602,7 +621,7 @@ public struct ErrorStrategyResolver {
     
     /// 增加错误计数
     /// - Parameter identifier: 错误标识符
-    mutating func incrementErrorCount(for identifier: String) {
+    public mutating func incrementErrorCount(for identifier: String) {
         errorCounts[identifier] = (errorCounts[identifier] ?? 0) + 1
         errorTimestamps[identifier] = Date()
     }
@@ -610,12 +629,12 @@ public struct ErrorStrategyResolver {
     /// 获取错误计数
     /// - Parameter identifier: 错误标识符
     /// - Returns: 错误计数
-    func getErrorCount(for identifier: String) -> Int {
+    public func getErrorCount(for identifier: String) -> Int {
         return errorCounts[identifier] ?? 0
     }
     
     /// 重置错误计数
-    mutating func resetErrorCounts() {
+    public mutating func resetErrorCounts() {
         errorCounts.removeAll()
         errorTimestamps.removeAll()
     }
@@ -710,7 +729,15 @@ public struct ErrorHandlerAdapter: Sendable {
     /// 兼容方法：尝试恢复
     public func compatibleAttemptRecovery(from error: Error, context: String = "") async -> Bool {
         let result = await enhancedHandler.attemptRecovery(from: error, context: context)
-        return result == .success
+        // 根据RecoveryResult决定是否成功
+        switch result {
+        case .success:
+            return true
+        case .partialSuccess(_):
+            return true
+        case .requiresUserInteraction, .failure(_):
+            return false
+        }
     }
     
     /// 兼容方法：记录错误
@@ -718,7 +745,7 @@ public struct ErrorHandlerAdapter: Sendable {
         let file = #file
         let line = #line
         let function = #function
-        handle(error, context: context, file: file, line: line, function: function)
+        enhancedHandler.handle(error, context: context, file: file, line: line, function: function)
     }
 }
 

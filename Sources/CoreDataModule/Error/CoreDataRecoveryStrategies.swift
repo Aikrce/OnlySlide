@@ -15,7 +15,7 @@ public enum RecoveryResult: Sendable {
 }
 
 /// 错误恢复策略协议
-public protocol RecoveryStrategy {
+public protocol RecoveryStrategy: Sendable {
     /// 恢复策略名称
     var name: String { get }
     
@@ -46,7 +46,7 @@ public final class CoreDataRecoveryExecutor: @unchecked Sendable {
     private let logger = Logger(subsystem: "com.onlyslide.coredatamodule", category: "Recovery")
     
     /// 注册的恢复策略
-    private var strategies: [RecoveryStrategy] = []
+    private var strategies: [any RecoveryStrategy & Sendable] = []
     
     // MARK: - 初始化
     
@@ -58,7 +58,7 @@ public final class CoreDataRecoveryExecutor: @unchecked Sendable {
     
     /// 注册恢复策略
     /// - Parameter strategy: 恢复策略
-    public func register(strategy: RecoveryStrategy) {
+    public func register(strategy: some RecoveryStrategy & Sendable) {
         strategies.append(strategy)
         logger.debug("已注册恢复策略: \(strategy.name)")
     }
@@ -319,7 +319,7 @@ final class BackupRestorationStrategy: RecoveryStrategy {
 
 /// 验证器恢复策略
 /// 用于处理验证错误
-final class ValidatorRecoveryStrategy: RecoveryStrategy {
+final class ValidatorRecoveryStrategy: RecoveryStrategy, @unchecked Sendable {
     let name = "ValidatorRecovery"
     
     func canHandle(_ error: Error) -> Bool {
@@ -355,7 +355,7 @@ final class ValidatorRecoveryStrategy: RecoveryStrategy {
 }
 
 /// 错误恢复策略协议
-public protocol ErrorRecoveryStrategy {
+@preconcurrency public protocol ErrorRecoveryStrategy: Sendable {
     /// 执行恢复策略
     /// - Parameter completion: 完成回调，传递是否成功
     func execute(completion: @escaping @Sendable (Bool) -> Void)

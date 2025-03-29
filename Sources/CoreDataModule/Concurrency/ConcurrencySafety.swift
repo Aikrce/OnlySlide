@@ -207,13 +207,8 @@ public struct CoreDataContextAccessor {
     }
     
     /// 在主线程上下文中执行操作
-    public func perform<T>(_ block: (NSManagedObjectContext) throws -> T) async throws -> T {
-        // 如果已经在主线程，直接执行
-        if Thread.isMainThread {
-            return try block(context)
-        }
-        
-        // 否则，确保在主线程上执行
+    public func perform<T: Sendable>(_ block: @escaping (NSManagedObjectContext) throws -> T) async throws -> T {
+        // 使用 MainActor.run 代替直接检查 Thread.isMainThread
         return try await MainActor.run {
             return try block(context)
         }
@@ -244,11 +239,11 @@ public actor IsolatedPersistentContainer {
     /// 加载持久化存储
     public func loadPersistentStores() async throws -> [NSPersistentStoreDescription] {
         return try await withCheckedThrowingContinuation { continuation in
-            container.loadPersistentStores { descriptions, error in
+            self.container.loadPersistentStores { descriptions, error in
                 if let error = error {
                     continuation.resume(throwing: error)
                 } else {
-                    continuation.resume(returning: container.persistentStoreDescriptions)
+                    continuation.resume(returning: self.container.persistentStoreDescriptions)
                 }
             }
         }
@@ -265,7 +260,7 @@ public actor IsolatedPersistentContainer {
     }
     
     /// 在后台上下文执行块
-    public func performBackgroundTask<T>(_ block: @escaping (NSManagedObjectContext) throws -> T) async throws -> T {
+    public func performBackgroundTask<T: Sendable>(_ block: @escaping @Sendable (NSManagedObjectContext) throws -> T) async throws -> T {
         return try await withCheckedThrowingContinuation { continuation in
             container.performBackgroundTask { context in
                 do {
