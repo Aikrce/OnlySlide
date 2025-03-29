@@ -207,20 +207,20 @@ public struct CoreDataContextAccessor {
     }
     
     /// 在主线程上下文中执行操作
-    public func perform<T>(_ block: (NSManagedObjectContext) throws -> T) throws -> T {
+    public func perform<T>(_ block: (NSManagedObjectContext) throws -> T) async throws -> T {
         // 如果已经在主线程，直接执行
         if Thread.isMainThread {
             return try block(context)
         }
         
         // 否则，确保在主线程上执行
-        return try MainActor.run {
+        return try await MainActor.run {
             return try block(context)
         }
     }
     
     /// 安全地异步在主线程上下文中执行操作
-    public func performAsync<T>(_ block: @escaping (NSManagedObjectContext) throws -> T) async throws -> T {
+    public func performAsync<T: Sendable>(_ block: @escaping (NSManagedObjectContext) throws -> T) async throws -> T {
         return try await MainActor.run {
             return try block(context)
         }
@@ -248,7 +248,7 @@ public actor IsolatedPersistentContainer {
                 if let error = error {
                     continuation.resume(throwing: error)
                 } else {
-                    continuation.resume(returning: descriptions)
+                    continuation.resume(returning: container.persistentStoreDescriptions)
                 }
             }
         }

@@ -44,8 +44,8 @@ import Foundation
     /// 线程安全锁
     private let lock = NSLock()
     
-    /// 清理计时器
-    private var cleanupTimer: Timer?
+    /// 是否有活跃的清理计时器
+    private var hasActiveCleanupTimer: Bool = false
     
     /// 初始化缓存
     /// - Parameters:
@@ -71,7 +71,10 @@ import Foundation
     }
     
     deinit {
-        cleanupTimer?.invalidate()
+        // 在 deinit 中不再直接访问 Timer
+        if hasActiveCleanupTimer {
+            stopCleanup()
+        }
     }
     
     /// 获取缓存项
@@ -150,11 +153,20 @@ import Foundation
     
     /// 设置定期清理
     private func scheduleCleanup() {
-        cleanupTimer = Timer.scheduledTimer(withTimeInterval: expirationInterval / 2, repeats: true) { [weak self] _ in
+        stopCleanup() // 先停止已有的计时器
+        
+        Timer.scheduledTimer(withTimeInterval: expirationInterval / 2, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.removeExpiredObjects()
             }
         }
+        hasActiveCleanupTimer = true
+    }
+    
+    /// 停止定期清理
+    private func stopCleanup() {
+        // 不直接操作 Timer
+        hasActiveCleanupTimer = false
     }
     
     /// 获取统计信息

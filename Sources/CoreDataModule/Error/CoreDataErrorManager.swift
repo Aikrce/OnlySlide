@@ -143,7 +143,23 @@ public final class CoreDataErrorManager: @unchecked Sendable {
     public func registerStrategy(_ strategy: ErrorHandlingStrategy, for errorType: String, context: String? = nil) {
         let key = createStrategyKey(errorType: errorType, context: context)
         errorStrategies[key] = strategy
-        logger.debug("已注册错误处理策略: \(strategy) 用于 \(key)")
+        logger.debug("已注册错误处理策略: \(strategyToString(strategy)) 用于 \(key)")
+    }
+    
+    /// 将策略转换为字符串表示
+    private func strategyToString(_ strategy: ErrorHandlingStrategy) -> String {
+        switch strategy {
+        case .retry(let maxAttempts, let delay):
+            return "重试策略(最大尝试:\(maxAttempts), 延迟:\(delay)秒)"
+        case .backupAndRestore:
+            return "备份与恢复策略"
+        case .userInteraction:
+            return "用户交互策略"
+        case .logOnly:
+            return "仅记录策略"
+        case .default:
+            return "默认策略"
+        }
     }
     
     /// 重置错误统计
@@ -169,6 +185,8 @@ public final class CoreDataErrorManager: @unchecked Sendable {
                 return .warning
             case .unknown:
                 return .error
+            default:
+                return .warning
             }
         } else if (error as NSError).domain == NSCocoaErrorDomain {
             return .error

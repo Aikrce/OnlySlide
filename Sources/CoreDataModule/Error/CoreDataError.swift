@@ -27,18 +27,19 @@ public enum CoreDataError: Error, LocalizedError {
     case backupFailed(Error)
     case backupDirectoryError(String)
     case invalidBackupFile
-    case backupRestoreFailed(reason: String)
+    case backupRestoreFailed(String)
     
     /// 迁移错误
     case modelNotFound(String)
     case migrationFailed(String)
-    case saveFailed(reason: String)
-    case updateFailed(reason: String)
-    case deleteFailed(reason: String)
-    case mergeConflict(reason: String)
-    case validationFailed(reason: String)
-    case invalidManagedObject(reason: String)
+    case saveFailed(String)
+    case updateFailed(String)
+    case deleteFailed(String)
+    case mergeConflict(String)
+    case validationFailed(String)
+    case invalidManagedObject(String)
     case notFound(String)
+    case fetchFailed(String)
     
     /// 通用错误
     case unknown(Error)
@@ -107,6 +108,8 @@ public enum CoreDataError: Error, LocalizedError {
             return "Invalid managed object: \(reason)"
         case .notFound(let message):
             return "Not found: \(message)"
+        case .fetchFailed(let message):
+            return "Fetch failed: \(message)"
             
         /// 通用错误
         case .unknown(let error):
@@ -126,11 +129,11 @@ public enum CoreDataError: Error, LocalizedError {
             case NSCoreDataError:
                 return .unknown(error)
             case NSValidationErrorMinimum...NSValidationErrorMaximum:
-                return .validationFailed(reason: error.localizedDescription)
+                return .validationFailed(error.localizedDescription)
             case NSManagedObjectValidationError:
-                return .validationFailed(reason: error.localizedDescription)
+                return .validationFailed(error.localizedDescription)
             case NSManagedObjectConstraintValidationError:
-                return .validationFailed(reason: "约束验证失败: \(error.localizedDescription)")
+                return .validationFailed("约束验证失败: \(error.localizedDescription)")
             case NSPersistentStoreError:
                 return .persistentStoreCoordinatorError(error)
             case NSManagedObjectContextLockingError:
@@ -138,13 +141,13 @@ public enum CoreDataError: Error, LocalizedError {
             case NSPersistentStoreCoordinatorLockingError:
                 return .persistentStoreCoordinatorError(error)
             case NSManagedObjectReferentialIntegrityError:
-                return .invalidManagedObject(reason: "引用完整性错误: \(error.localizedDescription)")
+                return .invalidManagedObject("引用完整性错误: \(error.localizedDescription)")
             case NSManagedObjectExternalRelationshipError:
-                return .invalidManagedObject(reason: "外部关系错误: \(error.localizedDescription)")
+                return .invalidManagedObject("外部关系错误: \(error.localizedDescription)")
             case NSManagedObjectMergeError:
-                return .mergeConflict(reason: error.localizedDescription)
+                return .mergeConflict(error.localizedDescription)
             case NSManagedObjectConstraintMergeError:
-                return .mergeConflict(reason: "约束合并错误: \(error.localizedDescription)")
+                return .mergeConflict("约束合并错误: \(error.localizedDescription)")
             case NSPersistentStoreInvalidTypeError:
                 return .persistentStoreCoordinatorError(error)
             case NSPersistentStoreTypeMismatchError:
@@ -156,7 +159,7 @@ public enum CoreDataError: Error, LocalizedError {
             case NSPersistentStoreOperationError:
                 return .persistentStoreCoordinatorError(error)
             case NSPersistentStoreSaveError:
-                return .saveFailed(reason: error.localizedDescription)
+                return .saveFailed(error.localizedDescription)
             case NSCoreDataError + 1:
                 return .migrationFailed("迁移错误: \(error.localizedDescription)")
             default:

@@ -147,7 +147,7 @@ final class StoreResetRecoveryStrategy: RecoveryStrategy {
         logger.info("尝试重置存储以恢复错误")
         
         // 获取存储URL
-        guard let storeURL = CoreDataStack.shared.persistentContainer.persistentStoreDescriptions.first?.url else {
+        guard let storeURL = await CoreDataStack.shared.persistentContainer.persistentStoreDescriptions.first?.url else {
             logger.error("无法获取存储URL")
             return .failure(CoreDataError.storeNotFound("无法获取存储URL"))
         }
@@ -199,10 +199,12 @@ final class ContextResetRecoveryStrategy: RecoveryStrategy {
         logger.info("尝试重置上下文以恢复错误")
         
         // 获取视图上下文
-        let viewContext = CoreDataStack.shared.persistentContainer.viewContext
+        let viewContext = await CoreDataStack.shared.persistentContainer.viewContext
         
         // 重置上下文
-        viewContext.reset()
+        await viewContext.perform {
+            viewContext.reset()
+        }
         logger.info("已重置视图上下文")
         
         return .success
@@ -233,7 +235,7 @@ final class MigrationRecoveryStrategy: RecoveryStrategy {
         logger.info("尝试执行手动迁移以恢复错误")
         
         // 获取存储URL
-        guard let storeURL = CoreDataStack.shared.persistentContainer.persistentStoreDescriptions.first?.url else {
+        guard let storeURL = await CoreDataStack.shared.persistentContainer.persistentStoreDescriptions.first?.url else {
             logger.error("无法获取存储URL")
             return .failure(CoreDataError.storeNotFound("无法获取存储URL"))
         }
@@ -244,8 +246,8 @@ final class MigrationRecoveryStrategy: RecoveryStrategy {
             logger.info("已创建存储备份")
             
             // 尝试执行手动迁移
-            let migrationManager = CoreDataMigrationManager.shared
-            migrationManager.reset()  // 重置迁移状态
+            let migrationManager = await CoreDataMigrationManager.shared
+            await migrationManager.reset()  // 重置迁移状态
             
             // 执行迁移
             try await migrationManager.performMigration(at: storeURL)
@@ -282,7 +284,7 @@ final class BackupRestorationStrategy: RecoveryStrategy {
         logger.info("尝试从备份恢复")
         
         // 获取存储URL
-        guard let storeURL = CoreDataStack.shared.persistentContainer.persistentStoreDescriptions.first?.url else {
+        guard let storeURL = await CoreDataStack.shared.persistentContainer.persistentStoreDescriptions.first?.url else {
             logger.error("无法获取存储URL")
             return .failure(CoreDataError.storeNotFound("无法获取存储URL"))
         }
@@ -323,7 +325,7 @@ final class ValidatorRecoveryStrategy: RecoveryStrategy {
     func canHandle(_ error: Error) -> Bool {
         let nsError = error as NSError
         return nsError.domain == NSCocoaErrorDomain && 
-            nsError.code == NSValidationErrorCode
+            (nsError.code >= NSValidationErrorMinimum && nsError.code <= NSValidationErrorMaximum)
     }
     
     func attemptRecovery(from error: Error, context: String) async -> RecoveryResult {
@@ -356,7 +358,7 @@ final class ValidatorRecoveryStrategy: RecoveryStrategy {
 public protocol ErrorRecoveryStrategy {
     /// 执行恢复策略
     /// - Parameter completion: 完成回调，传递是否成功
-    func execute(completion: @escaping (Bool) -> Void)
+    func execute(completion: @escaping @Sendable (Bool) -> Void)
     
     /// 异步执行恢复策略
     /// - Returns: 是否成功恢复
@@ -398,7 +400,7 @@ public final class CoreDataRecoveryStrategies {
         case .syncProcessError, .syncSetupError, .syncStartError, .syncStopError:
             return SyncRecoveryStrategy()
         case .migrationFailed:
-            return MigrationRecoveryStrategy()
+            return MigrationRecoveryStrategyImpl()
         case .backupFailed, .backupDirectoryError, .backupRestoreFailed:
             return BackupRecoveryStrategy()
         case .mergeConflict:
@@ -413,8 +415,9 @@ public final class CoreDataRecoveryStrategies {
 // MARK: - 具体恢复策略
 
 /// 存储重建策略
+@MainActor
 private class StoreRecreationStrategy: ErrorRecoveryStrategy {
-    func execute(completion: @escaping (Bool) -> Void) {
+    func execute(completion: @escaping @Sendable (Bool) -> Void) {
         // 实现存储重建逻辑
         let coreDataStack = CoreDataStack.shared
         
@@ -431,8 +434,9 @@ private class StoreRecreationStrategy: ErrorRecoveryStrategy {
 }
 
 /// 存储重置策略
+@MainActor
 private class StoreResetStrategy: ErrorRecoveryStrategy {
-    func execute(completion: @escaping (Bool) -> Void) {
+    func execute(completion: @escaping @Sendable (Bool) -> Void) {
         // 实现存储重置逻辑
         let coreDataStack = CoreDataStack.shared
         
@@ -449,8 +453,9 @@ private class StoreResetStrategy: ErrorRecoveryStrategy {
 }
 
 /// 上下文重置策略
+@MainActor
 private class ContextResetStrategy: ErrorRecoveryStrategy {
-    func execute(completion: @escaping (Bool) -> Void) {
+    func execute(completion: @escaping @Sendable (Bool) -> Void) {
         // 实现上下文重置逻辑
         let coreDataStack = CoreDataStack.shared
         coreDataStack.resetContext()
@@ -459,20 +464,16 @@ private class ContextResetStrategy: ErrorRecoveryStrategy {
 }
 
 /// 保存重试策略
+@MainActor
 private class SaveRetryStrategy: ErrorRecoveryStrategy {
-    func execute(completion: @escaping (Bool) -> Void) {
+    func execute(completion: @escaping @Sendable (Bool) -> Void) {
         // 实现保存重试逻辑
         let coreDataStack = CoreDataStack.shared
         let context = coreDataStack.mainContext
         
         Task {
             do {
-                // 先回滚，然后重试保存
-                await context.perform {
-                    context.rollback()
-                }
-                
-                try await coreDataStack.saveContext()
+                try context.save()
                 completion(true)
             } catch {
                 CoreLogger.error("重试保存失败: \(error.localizedDescription)", category: "Recovery")
@@ -484,7 +485,7 @@ private class SaveRetryStrategy: ErrorRecoveryStrategy {
 
 /// 同步恢复策略
 private class SyncRecoveryStrategy: ErrorRecoveryStrategy {
-    func execute(completion: @escaping (Bool) -> Void) {
+    func execute(completion: @escaping @Sendable (Bool) -> Void) {
         // 重置同步状态逻辑
         CoreLogger.info("执行同步恢复策略", category: "Recovery")
         
@@ -498,8 +499,8 @@ private class SyncRecoveryStrategy: ErrorRecoveryStrategy {
 }
 
 /// 迁移恢复策略
-private class MigrationRecoveryStrategy: ErrorRecoveryStrategy {
-    func execute(completion: @escaping (Bool) -> Void) {
+private class MigrationRecoveryStrategyImpl: ErrorRecoveryStrategy {
+    func execute(completion: @escaping @Sendable (Bool) -> Void) {
         CoreLogger.info("执行迁移恢复策略", category: "Recovery")
         
         // 模拟恢复过程
@@ -513,7 +514,7 @@ private class MigrationRecoveryStrategy: ErrorRecoveryStrategy {
 
 /// 备份恢复策略
 private class BackupRecoveryStrategy: ErrorRecoveryStrategy {
-    func execute(completion: @escaping (Bool) -> Void) {
+    func execute(completion: @escaping @Sendable (Bool) -> Void) {
         CoreLogger.info("执行备份恢复策略", category: "Recovery")
         
         // 模拟恢复过程
@@ -526,8 +527,9 @@ private class BackupRecoveryStrategy: ErrorRecoveryStrategy {
 }
 
 /// 合并冲突解决策略
+@MainActor
 private class MergeConflictResolutionStrategy: ErrorRecoveryStrategy {
-    func execute(completion: @escaping (Bool) -> Void) {
+    func execute(completion: @escaping @Sendable (Bool) -> Void) {
         CoreLogger.info("执行合并冲突解决策略", category: "Recovery")
         
         // 获取Core Data栈

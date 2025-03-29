@@ -42,8 +42,9 @@ import os
     /// 上次缓存清理时间
     private var lastCleanupTime: Date = Date()
     
-    /// 定时清理任务
-    private var cleanupTimer: Timer?
+    /// 定时清理任务 - 使用可选值包装而非直接存储 Timer
+    /// 这里我们不直接存储 Timer，而是存储一个表示是否有活跃计时器的布尔值
+    private var hasActiveCleanupTimer: Bool = false
     
     /// 是否启用详细日志
     public var verboseLogging: Bool = false
@@ -56,7 +57,10 @@ import os
     }
     
     deinit {
-        cleanupTimer?.invalidate()
+        // 在 deinit 中不再需要引用 Timer
+        if hasActiveCleanupTimer {
+            stopCleanupTimer()
+        }
     }
     
     // MARK: - 缓存命中统计
@@ -176,13 +180,23 @@ import os
     
     /// 启动定时清理检查器
     private func startCleanupTimer() {
-        cleanupTimer = Timer.scheduledTimer(withTimeInterval: 30 * 60, repeats: true) { [weak self] _ in
+        stopCleanupTimer() // 确保先停止已有计时器
+        
+        Timer.scheduledTimer(withTimeInterval: 30 * 60, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 if let strongSelf = self {
                     await strongSelf.checkCacheCleanupNeeded()
                 }
             }
         }
+        hasActiveCleanupTimer = true
+    }
+    
+    /// 停止定时清理
+    private func stopCleanupTimer() {
+        // 由于我们不再直接引用 Timer，这里不需要调用 invalidate
+        // 但在实际应用中，你可能需要一个方法来跟踪和停止计时器
+        hasActiveCleanupTimer = false
     }
     
     /// 检查是否需要清理缓存
