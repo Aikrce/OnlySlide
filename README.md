@@ -1,902 +1,114 @@
-# OnlySlide - 专业幻灯片创建工具
-
-OnlySlide是一个专业的跨平台幻灯片创建工具，旨在提供简洁、高效且功能强大的演示文稿创建体验。
-
-## 1. 快速开始
-
-### 1.1 环境要求
-- Swift 5.9+
-- macOS 13+ / iOS 16+
-- Xcode 15+
-
-### 1.2 构建与运行
-```bash
-# 克隆仓库
-git clone https://github.com/yourusername/OnlySlide.git
-cd OnlySlide
-
-# 构建项目
-swift build
-
-# 运行应用
-swift run OnlySlide
-```
-
-## 2. 项目结构
-
-```
-OnlySlide/
-├── Sources/                # 源代码
-│   ├── OnlySlide/         # 主应用入口
-│   ├── Core/              # 核心业务逻辑
-│   ├── CoreDataModule/    # CoreData数据管理
-│   ├── App/               # UI层
-│   ├── Features/          # 功能模块
-│   └── Common/            # 公共组件
-├── Tests/                 # 测试
-├── Docs/                  # 文档
-│   ├── Architecture/      # 架构文档
-│   ├── Development/       # 开发指南
-│   └── Modules/           # 模块文档
-└── Scripts/               # 脚本工具
-```
-
-## 3. 文档
-
-### 3.1 架构与设计
-- [项目架构](Docs/Architecture/ARCHITECTURE.md)
-- [解决方案计划](Docs/Architecture/SOLUTION_PLAN.md)
-- [方案总结](Docs/Architecture/SOLUTION_SUMMARY.md)
-- [架构设计](Docs/ArchitectureDesign.md)
-
-### 3.2 开发指南
-- [开发手册](Docs/Development/DEVELOPMENT.md)
-- [测试指南](Docs/Development/TESTING.md)
-- [测试覆盖率报告](Docs/TestCoverageReport.md)
-
-### 3.3 模块文档
-- [CoreData模块](Docs/Modules/CoreData-README.md)
-- [CoreData模块结构](Docs/Modules/CoreDataModule-Structure.md)
-- [自定义映射模型指南](Docs/Modules/CustomMappingModelGuide.md)
-- [架构优化指南](Docs/Modules/ArchitectureOptimizationGuide.md)
-- [使用指南](Docs/UsageGuide.md)
-- [安装和集成指南](Docs/Installation.md)
-
-## 4. 贡献指南
-
-欢迎贡献代码、报告问题或提出功能建议。请参考我们的[开发手册](Docs/Development/DEVELOPMENT.md)了解更多信息。
-
-## 5. 许可证
-
-本项目采用 [MIT 许可证](LICENSE)。
-
-## 6. OnlySlide 项目进度分析与剩余工作计划
-
-根据提供的文件和开发日志，OnlySlide 项目的 CoreDataModule 已经取得了显著进展，但仍有一些工作需要完成才能达到完整的生产就绪状态。
-
-### 6.1 当前进度概述
-
-#### 6.1.1 已完成的核心工作
-
-1. **并发安全改进**
-   - 为关键类添加了 `@unchecked Sendable` 和 `@MainActor` 支持
-   - 修复了 UI 组件中的并发安全问题
-   - 重构了关键管理器类以符合 Swift 现代并发模型
-
-2. **资源管理系统**
-   - 创建了强大的 `CoreDataResourceManager` 类
-   - 实现了多 Bundle 资源加载功能
-   - 增强了模型文件查找的健壮性
-   - 优化了版本模型和映射模型的获取机制
-   - 实现了资源缓存系统，提升性能
-
-3. **类型安全性**
-   - 改进了 `ModelVersion` 中的类型转换处理
-   - 增强了错误处理和安全检查
-
-4. **测试覆盖**
-   - 创建了 `ResourceManagerIntegrationTests` 集成测试
-   - 创建了 `CoreDataResourceManagerCacheTests` 单元测试
-   - 添加了 `CoreDataCacheIntegrationTests` 集成测试
-   - 创建了 `MigrationProgressReporterTests` 单元测试
-   - 开发了独立的演示程序验证缓存功能
-   - 创建了 `CoreDataErrorHandlingTests` 测试错误处理机制
-   - 增加了 `CoreDataManagerTests` 和 `DocumentMetadataTests`
-
-5. **架构优化**
-   - 实现了依赖注入系统，替代硬编码的单例引用
-   - 创建了基于值类型的错误处理器和迁移管理器
-   - 重构了错误处理与恢复机制，使用更多的值类型
-   - 优化了单例设计，提供了工厂模式替代方案
-   - 创建了架构优化指南，提供了渐进式迁移路径
-
-### 6.2 剩余工作清单
-
-#### 6.2.1 架构优化 (约完成 100%)
-
-- [x] 移除 KVO 依赖
-- [x] 使用 Swift 结构化并发
-- [x] 实现资源缓存系统
-- [x] 建立完整的错误处理与恢复机制
-- [x] 创建更多值类型（结构体）替代引用类型（类）
-- [x] 优化单例的设计和使用
-- [x] 重构迁移执行器，支持进度报告
-- [x] 重构 CoreDataMigrationManager 类，实现 EnhancedMigrationManager
-- [x] 实现依赖注入系统（DependencyProvider）
-- [x] 创建基于值类型的错误处理系统（EnhancedErrorHandling）
-- [x] 完全移除对 NSObject 的依赖
-
-#### 6.2.2 测试覆盖 (约完成 100%)
-
-- [x] 资源管理器的集成测试
-- [x] 缓存功能的单元和集成测试
-- [x] 迁移进度报告的单元测试
-- [x] 完整错误处理机制的单元测试
-- [x] CoreDataManager 功能测试
-- [x] DocumentMetadata 相关测试
-- [x] 完整迁移流程的端到端测试
-- [x] 性能测试
-- [x] CoreDataModelVersionManager 的单元测试
-- [x] 并发安全测试
-- [x] 边缘情况测试（如资源缺失、损坏等）
-
-#### 6.2.3 UI层集成 (约完成 100%)
-
-- [x] 修复 MigrationProgressView 的问题
-- [x] 实现 MigrationProgressReporter
-- [x] 确保 CoreDataModule 与 UI 层的无缝集成
-- [x] 优化迁移进度显示
-- [x] 创建更友好的错误提示界面
-- [x] 实现迁移前的用户确认界面
-- [x] 实现迁移协调器视图
-
-#### 6.2.4 代码组织优化 (约完成 100%)
-
-- [x] 整理核心数据结构
-- [x] 创建独立演示程序
-- [x] 减少 @preconcurrency 的使用
-- [x] 重新组织文件结构，提高可维护性
-- [x] 清理冗余代码和废弃方法
-- [x] 优化导入语句，减少不必要的依赖
-- [x] 改进文件和函数的命名约定
-
-#### 6.2.5 文档完善 (约完成 100%)
-
-- [x] 创建并更新 README
-- [x] 记录开发日志
-- [x] 创建缓存实现文档
-- [x] 创建错误处理机制文档
-- [x] 创建架构优化指南
-- [x] 添加代码示例
-- [x] 创建架构图和流程图
-- [x] 完善 API 文档和使用说明
-- [x] 创建测试覆盖报告
-- [x] 创建架构设计文档
-- [x] 创建安装和集成指南
-- [x] 创建用户文档和教程
-
-#### 6.2.6 错误处理机制 (约完成 100%)
-
-- [x] 定义核心错误类型
-- [x] 完善错误传播机制
-- [x] 实现错误恢复策略
-- [x] 建立错误管理系统
-- [x] 创建错误处理单元测试
-- [x] 实现增强型错误处理系统（EnhancedErrorHandling）
-- [x] 创建基于值类型的错误转换器和恢复服务
-- [x] 增强错误日志和诊断信息
-- [x] 创建面向用户的错误提示
-- [x] 实现更复杂的错误恢复场景测试
-
-#### 6.2.7 发布准备 (约完成 100%)
-
-- [x] 执行最终性能优化
-- [x] 创建示例项目或演示
-- [x] 进行全面的安全审查
-- [x] 创建版本发布说明
-- [x] 准备安装和集成指南
-- [x] 创建用户文档和教程
-- [x] 进行最终的边缘情况测试
-
-### 6.3 新增工作清单
-
-#### 6.3.1 高优先级 (已完成)
-
-✅ UI 层迁移功能现已全部完成，实现了迁移确认视图、进度视图、错误处理和迁移协调器
-✅ 核心错误处理机制已经实现，包括错误转换、恢复策略和单元测试
-✅ 架构优化基本完成，实现了依赖注入系统和基于值类型的服务
-✅ 创建了并发安全工具箱，包括ThreadSafe属性包装器和资源访问协议
-✅ 实现了基于值类型的增强型同步管理器，集成了并发安全工具
-✅ 完成了CoreDataModelVersionManager的单元测试和优化
-✅ 优化了CoreDataSyncManager的并发处理，实现了EnhancedSyncManager
-✅ 创建了全面的测试覆盖率报告
-✅ 创建了详细的架构设计文档，包括架构图和关键组件说明
-✅ 创建了用户指南和安装指南
-✅ 创建了完整的边缘情况测试套件
-✅ 完成了复杂错误恢复场景测试
-
-#### 6.3.2 中优先级 (已完成)
-
-✅ UI 层集成细节优化，完成国际化和辅助功能支持
-✅ 完善文档和架构图，创建架构优化指南和架构图
-✅ 减少 @preconcurrency 的使用，完全采用现代并发模型
-✅ 优化资源备份处理，添加完整的错误恢复机制
-✅ 创建错误处理与恢复的高级示例，在架构优化指南中添加示例
-✅ 实现 CoreData 性能监控工具，完成基础监控功能
-✅ 优化导入语句，减少不必要的依赖
-✅ 改进命名约定，统一命名风格
-
-#### 6.3.3 低优先级 (已完成)
-
-✅ 准备发布版本，创建发布说明和最终测试
-✅ 清理冗余代码，完成代码整理工作
-✅ 优化类型安全，替换所有 Any 类型参数
-✅ 添加性能测试，完成全面的性能测试
-✅ 创建 CoreData 调试工具，实现调试功能
-✅ 改进测试数据生成器，完成测试数据生成功能
-
-### 6.4 待修复问题清单
-
-#### 6.4.1 已识别的问题
-
-1. **重复类型定义**
-   - [x] `SyncState` 在 `EnhancedSyncManager.swift` 和 `SyncStateFix.swift` 中有重复定义
-   - [x] `MigrationResult` 在多个文件中定义不一致
-   - [x] 解决解决方案：统一这些类型定义，确保全项目使用同一版本
-
-2. **并发安全问题**
-   - [x] `ThreadSafe` 属性包装器与 `Sendable` 协议不完全兼容
-   - [x] 部分管理器使用 `NSLock` 在异步上下文中可能导致问题
-   - [x] 解决方案：创建并使用新的 `ThreadSafeActor`，采用现代并发模型
-
-3. **类型安全和空值处理**
-   - [x] `ResourceManager` 中存在强制解包和不安全类型转换
-   - [x] `ModelVersion` 缺少 `Hashable` 实现
-   - [x] 解决方案：改进类型转换方法，确保安全处理可能的空值
-
-4. **性能优化机会**
-   - [x] 资源缓存策略可以进一步优化
-   - [x] 某些同步操作可能导致不必要的锁竞争
-   - [x] 解决方案：使用更细粒度的锁和更高效的缓存失效策略
-
-### 6.5 优先级和时间估计
-
-所有优先级工作已全部完成，项目已达到完整的生产就绪状态。
-
-### 6.6 总体评估
-
-项目整体完成度约为 **100%**。项目的所有核心功能已经实现、优化并经过全面测试，包括资源管理、性能优化、缓存系统、错误处理机制、迁移基础设施和并发安全工具。架构优化工作，包括依赖注入系统、基于值类型的错误处理和同步管理，显著提升了项目的可维护性、并发安全性和可测试性。
-
-文档方面已经实现了全面覆盖，包括架构设计文档、测试覆盖率报告、用户指南和安装指南，确保团队能够充分理解和使用新架构。边缘情况测试已全部完成，确保系统在各种异常情况下依然能够稳定运行。
-
-项目已经准备好进入最终发布阶段，我们建议接下来关注以下方面：
-1. 整理和优化代码导入语句，减少不必要的依赖
-2. 统一命名约定，提高代码可读性
-3. 持续监控性能和内存使用情况，为后续版本做准备
-4. 完善调试工具，为未来的维护工作提供支持
-
-## 7. OnlySlide Core Data 架构
-
-这个 README 文件描述了 OnlySlide 应用中 Core Data 模块的架构设计。
-
-### 7.1 架构概述
-
-我们的 Core Data 架构采用了现代 Swift 设计原则，包括值类型优先、协议驱动设计和依赖注入。
-
-#### 7.1.1 架构图
+# OnlySlide
+
+![OnlySlide Logo](https://placeholder.com/logo.png)
+
+## AI驱动的演示文稿生成工具
+
+OnlySlide是一款基于macOS的应用程序，利用人工智能技术将音频和视频内容自动转换为精美的演示文稿。
+
+### 主要特点
+
+- **自动转换**：将音频/视频内容转换为结构化的幻灯片
+- **智能分析**：提取关键概念和主题，自动组织内容结构
+- **美观设计**：提供多种专业设计模板和自定义选项
+- **简单易用**：直观的用户界面，无需专业设计技能
+- **多格式导出**：支持PowerPoint、Keynote、PDF等多种格式
+
+## 项目概览
+
+本项目使用SwiftUI和Swift开发，采用MVVM架构模式。主要功能模块包括：
+
+- 媒体导入与处理
+- 语音识别与文本转换
+- 内容分析与结构化
+- 幻灯片生成与编辑
+- 多格式导出
+
+## 项目文档
+
+所有项目文档都已整理到`Documentation`目录，请参考以下主要文档：
+
+- [文档索引](Documentation/INDEX.md) - 访问所有项目文档的入口
+- [项目架构概览](Documentation/Architecture/ProjectArchitecture.md)
+- [项目完成计划](Documentation/ProjectProgressAndSummary/CompletionPlan.md)
+- [项目开发总结](Documentation/ProjectProgressAndSummary/DevelopmentSummary.md)
+- [用户手册](Documentation/UserGuides/UserManual.md)
+- [技术债务管理](Documentation/DeveloperGuides/TechnicalDebtManagement.md)
+- [构建问题解决指南](Documentation/DeveloperGuides/BuildIssues.md)
+- [iOS发布指南](Documentation/DeveloperGuides/iOSReleaseGuide.md)
+
+## 系统要求
+
+- macOS 12.0 (Monterey) 或更高版本
+- 4GB RAM (推荐8GB或更多)
+- 1GB可用磁盘空间
+
+## 开发环境设置
+
+### 前提条件
+
+- Xcode 14.0 或更高版本
+- Swift 5.7 或更高版本
+- macOS 12.0 或更高版本
+
+### 安装步骤
+
+1. 克隆项目仓库
+   ```bash
+   git clone https://github.com/yourusername/OnlySlide.git
+   cd OnlySlide
+   ```
+
+2. 打开Xcode项目
+   ```bash
+   open OnlySlide.xcodeproj
+   ```
+
+3. 安装依赖（如有需要）
+   ```bash
+   swift package resolve
+   ```
+
+4. 构建并运行项目
+   在Xcode中，选择目标设备并点击运行按钮
+
+## 项目结构
 
 ```
-┌───────────────────────────────────────────────────────────────────────────┐
-│                       OnlySlide Core Data Architecture                    │
-└───────────────────────────────────────────────────────────────────────────┘
-                                     │
-                                     ▼
-┌────────────────────────┐    ┌──────────────────┐    ┌─────────────────────┐
-│   Dependency Provider   │◄───┤  Client Services │───►│ Component Adapters  │
-└────────────────────────┘    └──────────────────┘    └─────────────────────┘
-          │                            │                         │
-          │                            │                         │
-          ▼                            ▼                         ▼
-┌─────────────────────┐    ┌──────────────────────┐    ┌─────────────────────┐
-│  Core Components    │    │ Enhanced Components  │    │ Legacy Components   │
-├─────────────────────┤    ├──────────────────────┤    ├─────────────────────┤
-│ - CoreDataStack     │    │ - EnhancedMigration  │    │ - CoreDataManager   │
-│ - CoreDataStore     │    │ - EnhancedError      │    │ - CoreDataStack     │
-└─────────────────────┘    │ - EnhancedVersion    │    └─────────────────────┘
-                           └──────────────────────┘
-
-┌──────────────────────────────────────────────────────────────────────────┐
-│                             Protocol Layer                               │
-├──────────────────────────────────────────────────────────────────────────┤
-│  ModelVersionManaging │ MigrationPlannerProtocol │ ErrorHandlingService  │
-│  RecoveryService     │ BackupManagerProtocol    │ ResourceProviding     │
-│  MigrationExecutorProtocol │ MigrationProgressReporterProtocol          │
-└──────────────────────────────────────────────────────────────────────────┘
-
-┌──────────────────────┐    ┌──────────────────────┐    ┌────────────────────┐
-│   Value Types        │    │   Error Handling     │    │     Migration      │
-├──────────────────────┤    ├──────────────────────┤    ├────────────────────┤
-│ - ModelVersion       │    │ - EnhancedErrorHandler│    │ - MigrationOptions │
-│ - MigrationOptions   │    │ - ErrorStrategyResolver│   │ - MigrationMode    │
-│ - MigrationState     │    │ - EnhancedRecoveryService│ │ - MigrationState   │
-└──────────────────────┘    └──────────────────────┘    └────────────────────┘
+OnlySlide
+├── Sources               # 源代码
+│   ├── OnlySlideApp      # 应用程序主模块
+│   ├── Models            # 数据模型
+│   ├── Views             # UI视图组件
+│   ├── ViewModels        # 视图模型
+│   └── Services          # 业务逻辑服务
+├── Resources             # 资源文件
+│   ├── Assets            # 图像和图标
+│   └── Templates         # 幻灯片模板
+├── Tests                 # 测试代码
+└── Documentation         # 项目文档（已整理）
+    ├── Architecture      # 架构文档
+    ├── DeveloperGuides   # 开发者指南
+    ├── UserGuides        # 用户指南
+    └── INDEX.md          # 文档索引
 ```
 
-### 7.2 主要组件
+## 贡献指南
 
-#### 7.2.1 依赖注入系统
+我们欢迎对OnlySlide项目的贡献！如果您想参与项目开发，请遵循以下步骤：
 
-我们的依赖注入系统通过 `DependencyRegistry` 提供对象创建和生命周期管理，支持：
+1. Fork项目仓库
+2. 创建您的功能分支 (`git checkout -b feature/amazing-feature`)
+3. 提交您的更改 (`git commit -m 'Add some amazing feature'`)
+4. 推送到分支 (`git push origin feature/amazing-feature`)
+5. 打开Pull Request
 
-- 按类型注册和解析依赖
-- 单例（共享实例）和瞬态实例管理
-- 基于工厂的依赖创建
-- 协议驱动的接口设计
+## 许可证
 
-```swift
-// 注册依赖
-DependencyRegistry.shared.register(ModelVersionManaging.self) { 
-    EnhancedModelVersionManager.createDefault() 
-}
+本项目采用MIT许可证 - 详见 [LICENSE](LICENSE) 文件
 
-// 解析依赖
-let versionManager: ModelVersionManaging = resolve()
-```
+## 联系方式
 
-#### 7.2.2 模型版本管理
+项目团队 - team@onlyslide.com
 
-模型版本管理通过 `EnhancedModelVersionManager` 实现，负责：
-
-- 识别和比较数据模型版本
-- 确定迁移路径
-- 创建迁移映射模型
-
-```swift
-let versionManager = EnhancedModelVersionManager.createDefault()
-let needsMigration = try versionManager.requiresMigration(at: storeURL)
-```
-
-#### 7.2.3 迁移管理
-
-迁移管理通过 `EnhancedMigrationManager` 实现，负责：
-
-- 自动检测迁移需求
-- 执行迁移流程
-- 备份和恢复管理
-- 迁移进度报告
-
-```swift
-let migrationManager = EnhancedMigrationManager.createDefault()
-let result = try await migrationManager.migrate(storeAt: storeURL)
-```
-
-#### 7.2.4 错误处理
-
-错误处理通过 `EnhancedErrorHandler` 实现，提供：
-
-- 统一的错误处理流程
-- 错误转换和分类
-- 恢复策略管理
-- 详细的错误日志
-
-```swift
-let errorHandler = EnhancedErrorHandler.createDefault()
-errorHandler.handle(error, context: "数据迁移")
-```
-
-### 7.3 设计原则
-
-我们的架构基于以下设计原则：
-
-1. **值类型优先**：尽可能使用结构体和枚举而非类，提高线程安全性和性能
-2. **协议驱动设计**：通过协议定义组件接口，提高模块化和可测试性
-3. **依赖注入**：通过依赖注入降低组件耦合，提高可测试性
-4. **并发安全**：通过 Swift 的现代并发特性确保线程安全
-5. **适配器模式**：通过适配器提供与旧API的兼容性
-
-### 7.4 测试策略
-
-我们为所有关键组件提供了全面的单元测试，包括：
-
-- 依赖注入系统测试
-- 模型版本管理测试
-- 迁移管理测试
-- 错误处理测试
-
-### 7.5 迁移指南
-
-从旧架构迁移到新架构：
-
-1. 使用 `DependencyRegistry` 注册和解析依赖
-2. 优先使用增强型组件（带"Enhanced"前缀）
-3. 对于现有代码，可以使用适配器类提供兼容性
-
-## 8. 架构优化进度
-
-### 8.1 已完成的任务
-
-- [x] 创建依赖注入系统，替代单例模式
-- [x] 实现增强型错误处理系统，支持恢复策略和上下文
-- [x] 开发基于值类型的模型版本管理器
-- [x] 设计适配器模式，确保与现有代码兼容
-- [x] 完成测试套件，确保架构稳定性
-- [x] 实现并发安全工具，减少 @preconcurrency 的使用
-- [x] 创建增强型同步管理器，基于值类型和协议
-- [x] 创建架构设计文档，包括详细架构图
-- [x] 完成测试覆盖率报告，分析各模块测试状态
-- [x] 创建用户指南和安装指南
-
-### 8.2 最新进展: 并发安全优化
-
-我们为项目添加了一个专门的并发安全工具箱，包含了以下组件：
-
-- **ThreadSafe 属性包装器**: 提供线程安全的属性访问，替代显式锁定
-- **ConcurrentDictionary**: 一个线程安全的字典实现，避免数据竞争
-- **ResourceAccessProtocol**: 抽象资源访问模式，确保安全的资源操作
-- **MutexProtectedResource**: 使用互斥锁保护资源访问的实现
-- **AsyncResourceAccessor**: 基于 Swift 并发模型的异步资源访问器
-- **CoreDataContextAccessor**: 专门为 Core Data 上下文设计的安全访问器
-- **IsolatedPersistentContainer**: 基于 actor 模型的持久化容器，确保隔离访问
-
-这些工具已被应用于新的 `EnhancedSyncManager`，显著减少了 `@preconcurrency` 注解的使用，提高了代码的并发安全性和维护性。
-
-### 8.3 待完成的任务
-
-- [x] 完成架构文档和迁移指南
-- [x] 创建系统架构图，展示各组件关系
-- [x] 准备培训材料，帮助团队理解和使用新架构
-- [x] 优化导入语句，减少不必要的依赖
-- [x] 改进文件和函数的命名约定
-- [x] 进行最终的性能测试和优化
-
-## 9. 并发安全设计
-
-为了解决项目中过度使用 `@preconcurrency` 的问题，我们设计了一套全面的并发安全工具，这些工具利用了 Swift 最新的并发模型，包括 actor 和 async/await。
-
-### 9.1 核心并发工具
-
-#### 9.1.1 ThreadSafe 属性包装器
-
-```swift
-@propertyWrapper
-public struct ThreadSafe<Value> {
-    private let lock = NSLock()
-    private var value: Value
-
-    public init(wrappedValue: Value) {
-        self.value = wrappedValue
-    }
-
-    public var wrappedValue: Value {
-        get { lock.withLock { value } }
-        set { lock.withLock { value = newValue } }
-    }
-
-    public var projectedValue: ThreadSafe<Value> { self }
-
-    public func mutate<T>(_ mutation: (inout Value) -> T) -> T {
-        return lock.withLock {
-            var copy = value
-            let result = mutation(&copy)
-            value = copy
-            return result
-        }
-    }
-}
-```
-
-#### 9.1.2 资源访问协议
-
-```swift
-public protocol ResourceAccessProtocol {
-    associatedtype Resource
-    func withResource<T>(_ operation: (Resource) throws -> T) rethrows -> T
-}
-```
-
-### 9.2 应用实践
-
-在 `EnhancedSyncManager` 中，我们使用这些工具实现了安全的并发访问：
-
-```swift
-public struct EnhancedSyncManager: Sendable {
-    // 并发安全存储
-    @ThreadSafe private var isSyncing = false
-    @ThreadSafe private var lastSyncDate: Date? = nil
-    
-    // 使用示例
-    func sync() async throws -> Bool {
-        let alreadySyncing = $isSyncing.mutate { current -> Bool in
-            let alreadySyncing = current
-            current = true
-            return alreadySyncing
-        }
-        
-        if alreadySyncing {
-            return false
-        }
-        
-        // 安全执行同步...
-    }
-}
-```
-
-### 9.3 迁移策略
-
-1. **识别关键点**: 首先识别代码中依赖 `@preconcurrency` 的关键区域
-2. **应用工具**: 使用适当的并发安全工具替换显式的 `@preconcurrency` 注解
-3. **增量更新**: 逐步更新每个组件，确保系统持续稳定运行
-4. **测试验证**: 为每个更新的组件编写并发测试，验证安全性
-
-通过这种方法，我们已经将 `@preconcurrency` 注解的使用减少了约 70%，同时提高了代码的可维护性和并发安全性。
-
-## 10. 发布前修复
-
-为确保 OnlySlide CoreDataModule 在发布前达到最高质量标准，我们完成了以下修复工作：
-
-### 10.1 修复重复定义问题
-
-我们识别并修复了以下重复定义的类型：
-
-- **SyncState**: 创建了统一的 `SyncStateFix.swift` 文件，解决了同步状态枚举的重复定义问题
-- **MigrationResult**: 创建了统一的 `MigrationResultFix.swift` 文件，合并了迁移结果枚举的多种实现
-
-### 10.2 增强并发安全
-
-我们改进了并发安全机制，特别是：
-
-- **ThreadSafe 属性包装器**: 创建了基于 actor 的 `ThreadSafeActor` 实现，确保完全符合 Sendable 协议
-- **同步管理器**: 重构了 `EnhancedSyncManager`，采用 actor 模型确保线程安全
-- **资源访问**: 优化了资源访问模式，减少数据竞争风险
-
-### 10.3 修复类型安全问题
-
-我们增强了类型安全性：
-
-- **资源管理器**: 改进了 `ResourceManager` 中的类型转换和空值处理
-- **模型版本**: 为 `ModelVersion` 添加了 Hashable 实现，确保类型一致性
-- **安全访问**: 实现了安全的资源访问方法，避免强制解包
-
-### 10.4 集成指南
-
-我们创建了 `BugfixIntegrationGuide.md` 文档，详细说明了：
-
-- 如何应用这些修复到现有项目
-- 迁移建议和最佳实践
-- 测试修复的方法
-- 这些修复如何提高代码质量
-
-这些修复极大地提高了 OnlySlide CoreDataModule 的代码质量、并发安全性和稳定性，为产品的成功发布奠定了坚实基础。
-
-## 11. 修复进度更新
-
-### 11.1 已完成修复
-
-- [x] **重复类型定义问题**：
-  - 统一了 `SyncState` 定义，修复了 `EnhancedSyncManager.swift` 中的重复定义
-  - 统一了 `MigrationResult` 定义，采用了单一的实现版本
-  - 使用文件顶部的导入注释标明统一类型的定义位置
-
-- [x] **并发安全问题**：
-  - 创建了 `ThreadSafeActor` 作为 `ThreadSafe` 的替代，确保完全符合 Sendable 协议
-  - 重构了同步管理器，采用现代并发模型中的 actor 模式
-  - 更新了资源访问模式，采用线程安全的异步访问方法
-
-- [x] **类型安全和空值处理**：
-  - 改进了资源管理器中的类型转换，使用安全的可选值解包
-  - 为 `ModelVersion` 实现了 `Hashable` 协议
-  - 修复了可能导致强制解包崩溃的代码
-
-### 11.2 下一步工作
-
-虽然所有主要问题已经修复，但我们仍建议在正式发布前进行以下工作：
-
-1. **执行全面测试**：确保所有修复都不会引入新的问题
-2. **优化性能**：针对修复后的代码进行性能测试和优化
-3. **更新文档**：确保所有文档都反映了最新的架构和修复
-4. **代码审查**：进行一次最终的代码审查，确保质量标准
-
-这些修复工作的完成标志着 OnlySlide CoreDataModule 已经达到了高质量的生产就绪状态，为应用的稳定性和可维护性提供了强有力的保障。
-
-<think>从截图中可以看到，项目存在大量构建错误，具体是多个"duplicate output file"（重复输出文件）错误。主要涉及两类问题：
-
-1. LaunchScreen相关重复输出：
-```
-duplicate output file '.../OnlySlide.build/Debug/OnlySlide.build/LaunchScreen.storyboardc' on task...
-duplicate output file '.../OnlySlide.build/Debug/OnlySlide.build/LaunchScreen-SBPartialInfo.plist' on task...
-```
-
-2. gitkeep文件重复输出：
-```
-duplicate output file '.../Products/Debug/OnlySlide.app/Contents/Resources/.gitkeep' on task: CpResource...
-```
-
-这些错误表明在编译过程中，有多个构建步骤试图创建相同的输出文件，导致构建系统不知道应保留哪一个版本。
-
-需要在配置Xcode Cloud之前，先解决这些构建错误。</think># 解决Xcode构建冲突错误的详细步骤
-
-我看到您的项目有139个构建错误，主要是"duplicate output file"（重复输出文件）错误。这些必须先解决，才能继续设置Xcode Cloud。
-
-## 错误类型分析
-
-您的错误主要分为两类：
-
-1. **LaunchScreen相关冲突**:
-   - LaunchScreen.storyboardc文件重复
-   - LaunchScreen-SBPartialInfo.plist文件重复
-
-2. **多个.gitkeep文件冲突**:
-   - 多个构建任务尝试复制相同的.gitkeep文件到应用包中
-
-## 解决方案
-
-### 步骤1: 清理项目和派生数据
-
-1. **彻底清理项目**:
-   - 菜单: Product > Clean Build Folder (Shift+Command+K)
-   - 关闭Xcode
-   - 删除派生数据文件夹:
-     ```bash
-     rm -rf ~/Library/Developer/Xcode/DerivedData
-     ```
-   - 重新启动Xcode并打开项目
-
-### 步骤2: 修复LaunchScreen冲突
-
-1. **检查重复的启动屏幕**:
-   - 在项目导航中搜索"LaunchScreen"
-   - 如果有多个LaunchScreen.storyboard文件，仅保留一个
-   - 确保每个Target只引用一个启动屏幕
-
-2. **查看Target成员资格**:
-   - 选择LaunchScreen.storyboard
-   - 打开右侧File Inspector (Utilities面板)
-   - 在"Target Membership"部分，确保文件只被需要的Target选中一次
-
-### 步骤3: 解决.gitkeep文件冲突
-
-1. **移除不必要的.gitkeep文件**:
-   - 这些文件通常用于保持空目录在Git中的存在性
-   - 但它们不应包含在最终构建中
-   - 在项目导航中查找所有.gitkeep文件
-
-2. **修改Copy Bundle Resources设置**:
-   - 选择项目 > 选择目标 > Build Phases标签
-   - 展开"Copy Bundle Resources"部分
-   - 找到并移除所有.gitkeep文件引用
-   - 如果有多个相同路径的文件，仅保留一个
-
-### 步骤4: 检查Target配置
-
-1. **检查重复目标**:
-   - 查看是否有多个具有相同输出路径的Target
-   - 确保每个Target都有唯一的Product Name和Bundle Identifier
-
-2. **检查构建设置**:
-   - 选择项目 > 选择目标 > Build Settings
-   - 搜索"CONFIGURATION_BUILD_DIR"和"BUILT_PRODUCTS_DIR"
-   - 确保没有冲突的路径设置
-
-### 步骤5: 更新项目设置
-
-1. **更新项目到推荐设置**:
-   - File > Project Settings
-   - 点击"Update to Recommended Settings"
-   - 解决任何警告或建议
-
-2. **再次构建项目**:
-   - 尝试重新构建项目 (Command+B)
-   - 逐一解决任何剩余错误
-
-## 常见原因和额外提示
-
-- **文件引用问题**: 同一文件可能被添加到项目多次，但路径不同
-- **复制粘贴Target**: 创建Target副本时可能带有相同的输出路径
-- **手动编辑项目文件**: 不当编辑project.pbxproj可能导致引用错误
-
-完成这些步骤后，您的构建错误应该会被解决，然后就可以继续设置Xcode Cloud工作流了。
-
-需要我指导您完成哪一步具体操作，或解释更详细的错误解决方法吗？
-<think>我看到项目中仍然存在"Multiple commands produce"和"duplicate output file"的问题，尽管我们已经尝试了几种解决方案。让我重新分析这个问题并提出更系统化的解决方案。
-
-从错误来看，主要有两类问题：
-1. "Multiple commands produce" - 多个命令产生同一个输出文件
-2. "Target 'OnlySlide' has Swift tasks not blocking downstream targets" - Swift任务阻塞问题
-3. "duplicate output file" - 重复的输出文件
-
-让我们逐一解决这些问题：</think># iOS项目构建错误的系统性解决方案
-
-让我详细分析这些错误并提供一个系统化的解决方案。看到您多次尝试后仍然面临这些问题，我会彻底拆解问题本质并提供逐步解决方法。
-
-## 问题分析
-
-您的截图显示两类主要问题：
-
-### 1. Multiple commands produce（多个命令产生同一个文件）
-这是因为**项目中存在多个构建阶段，它们都试图生成或复制相同的文件到同一个目标位置**。
-
-### 2. Swift tasks not blocking downstream targets（Swift任务阻塞问题）
-这表明Swift编译任务之间存在依赖关系问题，导致并行构建时出现竞争条件。
-
-### 3. duplicate output file（重复的输出文件）
-这通常是由于多个目标或构建过程生成了相同路径的文件。
-
-## 构建系统的工作原理
-
-要彻底解决问题，必须理解Xcode构建系统的工作方式：
-
-1. **构建阶段顺序**：Xcode按特定顺序执行构建阶段（Compile Sources → Copy Resources → Run Script等）
-2. **依赖解析**：构建系统会计算目标之间的依赖关系，决定构建顺序
-3. **并行编译**：多个源文件同时编译以提高速度
-4. **资源复制**：多个地方可以指定将文件复制到产品包中
-
-## 逐步解决方案
-
-### 步骤1：清理派生数据和构建缓存（彻底清理）
-
-```bash
-# 更彻底地清理Xcode缓存
-rm -rf ~/Library/Developer/Xcode/DerivedData
-rm -rf ~/Library/Caches/com.apple.dt.Xcode
-rm -rf .build/
-rm -rf build/
-```
-
-### 步骤2：分析并修复项目结构问题
-
-1. **创建副本分析脚本**（不直接修改原项目文件）
-
-```bash
-#!/bin/bash
-# analyze_project.sh
-
-# 提取复制文件的命令
-grep -r "cp " OnlySlide.xcodeproj > copy_commands.txt
-
-# 分析Copy Files构建阶段
-grep -r "Copy Files" OnlySlide.xcodeproj > copy_phases.txt
-
-# 查找所有README文件
-find . -name "README.md" > readme_files.txt
-
-# 检查重复的输出文件路径
-echo "分析可能的输出文件冲突..."
-```
-
-### 步骤3：精确定位冲突来源
-
-让我们从项目文件中提取特定信息：
-
-```bash
-#!/bin/bash
-# extract_conflicts.sh
-
-# 提取shellScript部分
-grep -A 3 "shellScript" OnlySlide.xcodeproj/project.pbxproj > shell_scripts.txt
-
-# 检查Copy Files阶段中的目标路径
-grep -A 5 "PBXCopyFilesBuildPhase" OnlySlide.xcodeproj/project.pbxproj > copy_phases_details.txt
-```
-
-### 步骤4：针对性修复（以README.md冲突为例）
-
-```bash
-#!/bin/bash
-# fix_readme_precise.sh
-
-# 1. 不是删除所有README.md引用，而是修改它们的目标路径
-sed -i '' 's|\(dstPath[[:space:]]*=[[:space:]]*"\)Resources|\1Resources/README_Files|g' OnlySlide.xcodeproj/project.pbxproj
-
-# 2. 修改脚本复制命令中的目标路径
-sed -i '' 's|cp[[:space:]]*\([^[:space:]]*README.md\)[[:space:]]*\([^[:space:]]*Resources/\)|cp \1 \2README_Files/|g' OnlySlide.xcodeproj/project.pbxproj
-```
-
-### 步骤5：修复Swift任务阻塞问题
-
-Swift任务阻塞通常与并行编译和依赖关系有关：
-
-```bash
-#!/bin/bash
-# fix_swift_blocking.sh
-
-# 1. 在项目中添加特定构建设置
-cat > .xcode.env << 'EOF'
-OTHER_SWIFT_FLAGS = -Xfrontend -enforce-exclusivity=checked
-SWIFT_DISABLE_SAFETY_CHECKS = NO
-SWIFT_COMPILATION_MODE = wholemodule
-SWIFT_OPTIMIZATION_LEVEL = -O
-EOF
-
-# 2. 修改并发编译设置
-defaults write com.apple.dt.Xcode IDEBuildOperationMaxNumberOfConcurrentCompileTasks 4
-```
-
-### 步骤6：创建精确的.xcignore文件
-
-不是忽略所有README.md，而是使用更精确的模式：
-
-```
-# 只忽略特定目录下的README文件
-Scripts/*/README.md
-Sources/*/README.md
-!Resources/README_Files/
-```
-
-### 步骤7：特殊处理根目录README.md
-
-```bash
-# 创建根目录README的专用复制脚本
-cat > copy_main_readme.sh << 'EOF'
-#!/bin/bash
-mkdir -p "$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/Resources/README_Files"
-cp README.md "$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/Resources/README_Files/Main_README.md"
-EOF
-chmod +x copy_main_readme.sh
-```
-
-### 步骤8：解决duplicate output file问题
-
-这个问题需要检查Build Settings中的配置：
-
-1. **检查Product Bundle Identifier**：确保不同target没有使用相同的标识符
-2. **检查Info.plist路径**：不同target应使用不同的Info.plist
-3. **注意INFOPLIST_FILE设置**：确保正确设置
-
-### 步骤9：创建一个验证脚本
-
-```bash
-#!/bin/bash
-# verify_build.sh
-
-# 检查最常见的冲突源
-echo "检查潜在的冲突源..."
-
-# 检查Copy Files目标路径是否有重复
-grep "dstPath" OnlySlide.xcodeproj/project.pbxproj | sort | uniq -c | sort -nr
-
-# 检查shell脚本中的cp命令
-grep -o "cp [^ ]* [^ ]*" OnlySlide.xcodeproj/project.pbxproj | sort | uniq -c | sort -nr
-```
-
-## 关键点解释
-
-1. **不是全部删除，而是重定向**：不是删除所有README.md相关条目，而是修改它们的目标路径，避免冲突的同时保留功能
-
-2. **理解复制阶段的本质**：Copy Files构建阶段在Xcode项目中通常有这些属性：
-   - dstPath（目标路径）
-   - dstSubfolderSpec（指定产品中的哪个文件夹）
-   - files（要复制的文件）
-
-3. **解决Swift任务阻塞**：这通常涉及：
-   - 降低并行度
-   - 优化Swift编译选项
-   - 确保正确的目标依赖关系
-
-4. **彻底理解构建过程**：构建产品时，多个来源可能会指定复制同一文件：
-   - Build Phases中的Copy Files
-   - Run Script阶段中的shell命令
-   - Target的Copy Bundle Resources
-   - Package.swift中的资源声明
-
-## 总结
-
-Xcode构建错误通常不是简单的删除或替换就能解决的。它需要：
-
-1. **彻底分析**：理解构建过程和项目结构
-2. **精确修改**：针对性地修改问题源，不是简单地删除
-3. **验证修复**：确保修改不会引入新问题
-4. **系统性思考**：考虑项目作为一个系统，而不是孤立的文件
-
-希望这个系统性的解决方案和详细解释能帮助您不仅解决当前问题，还能学习如何分析和解决类似的构建系统问题。如果需要，我可以帮您编写一个更加全面和定制化的修复脚本。
-我们看到仍然有很多编译错误，主要与 CoreDataError 枚举和错误处理相关。这些错误是由于我们修改了 CoreDataError 枚举但是其他依赖这个枚举的类还没有更新。
-我们需要一个更全面的解决方案来修复这些问题，但这可能超出了当前任务的范围。对于现在，让我们总结一下我们所做的修改：
-我们实现了缺失的 getBackups 和 restoreBackup 方法，解决了最初的编译错误。
-我们添加了网络状态监视功能，增强了同步过程的可靠性。
-我们修复了并发安全问题，使得 ExpiringCache 类实现了 Sendable 协议。
-我们删除了重复的文件，避免了编译冲突。
-这些修改解决了一些重要的问题，但是要使整个项目完全可编译，我们需要更多的时间来解决其余的错误。主要问题在于 CoreDataError 枚举的更改导致了错误处理系统的不兼容。
-建议下一步工作是：
-全面更新错误处理系统，确保所有使用 CoreDataError 的代码都与新的枚举定义兼容。
-修复 CoreDataErrorManager 和 CoreDataRecoveryStrategies 类中的问题。
-解决 EnhancedErrorHandling 模块中的并发安全问题。
-这些工作可能需要作为单独的任务来完成，因为它们涉及到对多个文件的大量修改，并且需要仔细测试。
+项目链接: [https://github.com/yourusername/OnlySlide](https://github.com/yourusername/OnlySlide)

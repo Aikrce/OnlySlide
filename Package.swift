@@ -17,9 +17,15 @@ let package = Package(
         .library(name: "OnlySlideCommon", targets: ["Common"]),
         .library(name: "OnlySlideCoreData", targets: ["CoreDataModule"]),
         .library(name: "OnlySlideLogging", targets: ["Logging"]),
-        .library(name: "OnlySlideTesting", targets: ["Testing"])
+        .library(name: "OnlySlideTesting", targets: ["Testing"]),
+        .library(name: "OnlySlideDocumentAnalysis", targets: ["DocumentAnalysis"])
     ],
-    dependencies: [],
+    dependencies: [
+        // 添加ZIP文件处理库，用于解析.docx文件
+        .package(url: "https://github.com/weichsel/ZIPFoundation.git", from: "0.9.0"),
+        // 添加XML解析库，用于处理Office XML格式
+        .package(url: "https://github.com/MaxDesiatov/XMLCoder.git", from: "0.13.0")
+    ],
     targets: [
         // 主应用目标
         .executableTarget(
@@ -29,11 +35,26 @@ let package = Package(
                 "App",
                 "Features",
                 "Common",
-                "CoreDataModule"
+                "CoreDataModule",
+                "DocumentAnalysis"
             ],
             path: "Sources/OnlySlide",
             exclude: [],
             resources: []
+        ),
+        
+        // 文档分析模块
+        .target(
+            name: "DocumentAnalysis",
+            dependencies: [
+                "Common",
+                .product(name: "ZIPFoundation", package: "ZIPFoundation"),
+                .product(name: "XMLCoder", package: "XMLCoder")
+            ],
+            path: "Sources/DocumentAnalysis",
+            swiftSettings: [
+                .define("DEBUG", .when(configuration: .debug))
+            ]
         ),
         
         // 日志模块
@@ -91,7 +112,7 @@ let package = Package(
         // UI模块
         .target(
             name: "App",
-            dependencies: ["Core", "Common", "CoreDataModule"],
+            dependencies: ["Core", "Common", "CoreDataModule", "DocumentAnalysis"],
             path: "Sources/App",
             swiftSettings: [
                 .define("DEBUG", .when(configuration: .debug))
@@ -105,7 +126,8 @@ let package = Package(
                 "Core",
                 "Common",
                 "CoreDataModule",
-                "Logging"
+                "Logging",
+                "DocumentAnalysis"
             ],
             path: "Sources/Features",
             swiftSettings: [
@@ -172,6 +194,15 @@ let package = Package(
             name: "LoggingTests",
             dependencies: ["Logging", "Common", "Testing"],
             path: "Tests/LoggingTests",
+            swiftSettings: [
+                .define("TEST", .when(configuration: .debug))
+            ]
+        ),
+        // 文档分析模块测试
+        .testTarget(
+            name: "DocumentAnalysisTests",
+            dependencies: ["DocumentAnalysis", "Testing"],
+            path: "Tests/DocumentAnalysisTests",
             swiftSettings: [
                 .define("TEST", .when(configuration: .debug))
             ]

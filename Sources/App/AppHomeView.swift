@@ -1,7 +1,9 @@
 import SwiftUI
+import DocumentAnalysis
 
-struct HomeView: View {
+struct AppHomeView: View {
     @State private var showSettings = false
+    @State private var showDocumentAnalysis = false
     
     var body: some View {
         NavigationView {
@@ -21,6 +23,22 @@ struct HomeView: View {
                 
                 Spacer().frame(height: 40)
                 
+                // 文档分析功能入口
+                Button(action: {
+                    showDocumentAnalysis = true
+                }) {
+                    HStack {
+                        Image(systemName: "doc.text.magnifyingglass")
+                        Text("文档分析")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                }
+                .padding(.horizontal, 40)
+                
                 // 示例按钮
                 Button(action: {
                     // 打开新文档
@@ -31,7 +49,7 @@ struct HomeView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color.blue)
+                    .background(Color.blue.opacity(0.8))
                     .foregroundColor(.white)
                     .cornerRadius(10)
                 }
@@ -71,6 +89,35 @@ struct HomeView: View {
             .sheet(isPresented: $showSettings) {
                 SettingsView()
             }
+            .sheet(isPresented: $showDocumentAnalysis) {
+                NavigationView {
+                    DocumentAnalysisView()
+                }
+                .navigationViewStyle(StackNavigationViewStyle())
+            }
+        }
+    }
+}
+
+// MARK: - 预览
+struct AppHomeView_Previews: PreviewProvider {
+    static var previews: some View {
+        Group {
+            // iOS 预览
+            AppHomeView()
+                .previewDevice(PreviewDevice(rawValue: "iPhone 13"))
+                .previewDisplayName("iOS - iPhone 13")
+            
+            // macOS 预览
+            AppHomeView()
+                .frame(width: 800, height: 600)
+                .previewDevice(PreviewDevice(rawValue: "Mac"))
+                .previewDisplayName("macOS")
+            
+            // iPad 预览
+            AppHomeView()
+                .previewDevice(PreviewDevice(rawValue: "iPad Pro (11-inch) (3rd generation)"))
+                .previewDisplayName("iPadOS")
         }
     }
 } 

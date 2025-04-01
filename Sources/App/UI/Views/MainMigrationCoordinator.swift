@@ -1,5 +1,5 @@
 import SwiftUI
-import CoreDataModule
+// import CoreDataModule
 
 /// 迁移协调器视图
 /// 根据应用状态显示不同的迁移相关视图

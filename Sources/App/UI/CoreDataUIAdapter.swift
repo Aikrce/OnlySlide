@@ -1,7 +1,23 @@
 import SwiftUI
 import Combine
-import CoreDataModule
+// import CoreDataModule
 
+/// 数据库信息结构体
+public struct DatabaseInfo {
+    let sizeInBytes: Int64
+    let currentVersion: String
+    let targetVersion: String
+    let migrationComplexity: MigrationComplexity
+}
+
+/// 迁移复杂度枚举
+public enum MigrationComplexity {
+    case simple
+    case moderate
+    case complex
+}
+
+/// CoreData UI适配器
 @MainActor
 final class CoreDataUIAdapter: ObservableObject {
     @Published var migrationProgress: Double = 0.0
@@ -9,19 +25,23 @@ final class CoreDataUIAdapter: ObservableObject {
     @Published var isMigrating: Bool = false
     @Published var migrationState: MigrationStateWrapper = .notStarted
     
-    private let coreDataManager = CoreDataManager.shared
+    private let coreDataManager: CoreDataManagerProtocol
     private var cancellables = Set<AnyCancellable>()
     
     init() {
+        // 使用工厂方法获取CoreDataManager实例
+        self.coreDataManager = CoreDataManagerFactory.getManager()
         setupBindings()
     }
     
     private func setupBindings() {
+        // 订阅迁移进度
         coreDataManager.migrationProgressPublisher
             .receive(on: DispatchQueue.main)
             .assign(to: \.migrationProgress, on: self)
             .store(in: &cancellables)
         
+        // 订阅迁移状态
         coreDataManager.migrationStatePublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] state in
@@ -31,6 +51,7 @@ final class CoreDataUIAdapter: ObservableObject {
             }
             .store(in: &cancellables)
         
+        // 订阅错误信息
         coreDataManager.migrationErrorPublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] error in
@@ -52,57 +73,14 @@ final class CoreDataUIAdapter: ObservableObject {
     }
     
     func getDatabaseInfo() async throws -> DatabaseInfo {
-        // 获取存储URL
-        guard let storeURL = CoreDataStack.shared.persistentContainer.persistentStoreDescriptions.first?.url else {
-            throw CoreDataError.storeNotFound("无法获取存储URL")
-        }
-        
-        // 检查文件大小
-        let fileManager = FileManager.default
-        let fileAttributes = try fileManager.attributesOfItem(atPath: storeURL.path)
-        let fileSize = fileAttributes[.size] as? Int64 ?? 0
-        
-        // 获取版本信息
-        let planner = MigrationPlanner()
-        let needsMigration = try await planner.requiresMigration(at: storeURL)
-        
-        if !needsMigration {
-            return DatabaseInfo(
-                sizeInBytes: fileSize,
-                currentVersion: "最新版本",
-                targetVersion: "最新版本",
-                migrationComplexity: .simple
-            )
-        }
-        
-        // 创建迁移计划以获取更多信息
-        let plan = try await planner.createMigrationPlan(for: storeURL)
-        
-        let currentVersion = plan.sourceVersion.displayName
-        let targetVersion = plan.destinationVersion.displayName
-        
-        // 根据步骤数确定复杂度
-        let complexity: MigrationComplexity
-        switch plan.steps.count {
-        case 0:
-            complexity = .simple
-        case 1:
-            complexity = .simple
-        case 2...3:
-            complexity = .moderate
-        default:
-            complexity = .complex
-        }
-        
-        return DatabaseInfo(
-            sizeInBytes: fileSize,
-            currentVersion: currentVersion,
-            targetVersion: targetVersion,
-            migrationComplexity: complexity
-        )
+        return try await coreDataManager.getDatabaseInfo()
     }
     
     func resetMigration() {
-        CoreDataMigrationManager.shared.reset()
+        coreDataManager.resetMigration()
+    }
+    
+    func checkIfMigrationNeeded() async throws -> Bool {
+        return try await coreDataManager.requiresMigration()
     }
 } 

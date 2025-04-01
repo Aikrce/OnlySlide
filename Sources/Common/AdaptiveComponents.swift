@@ -1,13 +1,19 @@
 // AdaptiveComponents.swift
 // 提供常用UI组件的跨平台实现
+// 注意：此文件已被弃用，新的开发请使用PlatformAdapter中的统一组件
 
 import SwiftUI
+
+// 整个文件已被弃用，建议使用PlatformAdapter中的统一平台适配功能
+@available(*, deprecated, message: "请使用Sources/Common/PlatformAdapter.swift中的统一平台适配功能")
+public enum AdaptiveComponentsDeprecationNotice {}
 
 #if os(iOS) || os(tvOS)
 import UIKit
 #endif
 
 // MARK: - 自适应按钮
+@available(*, deprecated, message: "请改用PlatformAdapter提供的跨平台组件")
 public struct AdaptiveButton: View {
     private let title: String
     private let icon: String?

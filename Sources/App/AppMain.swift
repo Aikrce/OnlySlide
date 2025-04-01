@@ -1,4 +1,4 @@
-// OnlySlideApp.swift
+// AppMain.swift
 // 主应用入口
 
 import SwiftUI
@@ -9,7 +9,7 @@ import AppKit
 
 /// OnlySlide 应用入口点
 @main
-public struct OnlySlideApp: App {
+public struct AppMain: App {
     private let appPreferences = AppPreferences()
     
     public init() {}
@@ -17,8 +17,10 @@ public struct OnlySlideApp: App {
     public var body: some Scene {
         #if os(macOS)
         WindowGroup {
-            MainLaunchView()
-                .frame(minWidth: 800, minHeight: 600)
+            PlatformAdaptiveContainer {
+                MainLaunchView()
+            }
+            .frame(minWidth: 800, minHeight: 600)
         }
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
@@ -40,7 +42,9 @@ public struct OnlySlideApp: App {
         }
         #else
         WindowGroup {
-            MainLaunchView()
+            PlatformAdaptiveContainer {
+                MainLaunchView()
+            }
         }
         #endif
     }

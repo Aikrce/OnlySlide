@@ -1,5 +1,4 @@
 import SwiftUI
-import CoreDataModule
 
 struct ErrorAlertView: View {
     @Binding var errorMessage: String?

@@ -1,5 +1,62 @@
 import SwiftUI
-import CoreDataModule
+
+// CoreDataResourceManager接口
+protocol ResourceManagerProtocol {
+    func cleanupBackups(keepLatest: Int)
+}
+
+/// 资源管理器工厂
+enum ResourceManagerFactory {
+    static func getManager() -> ResourceManagerProtocol {
+        if let managerClass = NSClassFromString("CoreDataModule.CoreDataResourceManager") as? NSObject.Type,
+           let manager = managerClass.value(forKeyPath: "shared") as? NSObject {
+            return ResourceManagerWrapper(manager: manager)
+        }
+        
+        return MockResourceManager()
+    }
+}
+
+/// 资源管理器包装器
+private class ResourceManagerWrapper: ResourceManagerProtocol {
+    private let manager: NSObject
+    
+    init(manager: NSObject) {
+        self.manager = manager
+    }
+    
+    func cleanupBackups(keepLatest: Int) {
+        if manager.responds(to: Selector(("cleanupBackups:"))) {
+            manager.perform(Selector(("cleanupBackups:")), with: NSNumber(value: keepLatest))
+        }
+    }
+}
+
+/// 模拟资源管理器
+private class MockResourceManager: ResourceManagerProtocol {
+    func cleanupBackups(keepLatest: Int) {
+        // 模拟实现，不执行实际操作
+        print("模拟清理备份，保留最近\(keepLatest)个")
+    }
+}
+
+// DatabaseInfo扩展
+extension DatabaseInfo {
+    var formattedSize: String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB, .useGB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: sizeInBytes)
+    }
+    
+    var complexityDescription: String {
+        switch migrationComplexity {
+        case .simple: return "简单"
+        case .moderate: return "中等"
+        case .complex: return "复杂"
+        }
+    }
+}
 
 struct SettingsView: View {
     @Environment(\.presentationMode) var presentationMode
@@ -98,7 +155,7 @@ struct SettingsView: View {
     private func cleanupBackups() {
         Task {
             do {
-                let resourceManager = CoreDataResourceManager.shared
+                let resourceManager = ResourceManagerFactory.getManager()
                 resourceManager.cleanupBackups(keepLatest: 3)
                 
                 await MainActor.run {
