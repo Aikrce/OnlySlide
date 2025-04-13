@@ -1,0 +1,43 @@
+# 禁用的规则
+disabled_rules:
+  - trailing_whitespace
+  - line_length
+
+# 启用的规则
+opt_in_rules:
+  - empty_count
+  - force_unwrapping
+  - private_outlet
+  - closure_spacing
+  - first_where
+
+# 排除的路径
+excluded:
+  - Tests
+  - UITests
+  - .build
+  - DerivedData
+
+# 规则配置
+identifier_name:
+  min_length:
+    warning: 3
+    error: 2
+  excluded:
+    - id
+    - URL
+    - x
+    - y
+    - i
+
+file_length:
+  warning: 500
+  error: 1000
+
+# OnlySlide特定规则
+custom_rules:
+  slide_element_naming:
+    name: "Slide Element Naming"
+    regex: "(var|let)\\s+([a-z]*Element)[A-Z]\\w*"
+    message: "Element variables should follow lowerCamelCase with 'Element' suffix"
+    severity: warning

@@ -1,0 +1,43 @@
+# Swift源代码文件使用LF换行符
+*.swift text=auto eol=lf
+*.h text=auto eol=lf
+*.m text=auto eol=lf
+*.mm text=auto eol=lf
+
+# Swift工具文件使用LF换行符
+Package.swift text=auto eol=lf
+*.podspec text=auto eol=lf
+
+# 文档和配置文件使用LF换行符
+*.md text=auto eol=lf
+*.yml text=auto eol=lf
+*.yaml text=auto eol=lf
+*.json text=auto eol=lf
+*.plist text=auto eol=lf
+*.strings text=auto eol=lf
+
+# 脚本文件使用LF换行符，并保持可执行权限
+*.sh text=auto eol=lf
+
+# Xcode项目文件使用union合并策略
+*.xcodeproj/* merge=union
+*.pbxproj binary merge=union
+
+# 二进制文件不进行行尾转换和差异比较
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.tiff binary
+*.ico binary
+*.pdf binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+
+# 声明使用的语言，以便GitHub正确识别代码语言
+*.swift linguist-language=Swift
+*.h linguist-language=Objective-C
+*.m linguist-language=Objective-C
+*.mm linguist-language=Objective-C++ 
