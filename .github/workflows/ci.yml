@@ -31,4 +31,15 @@ jobs:
         
     - name: Run macOS tests
       run: |
-        xcodebuild test -project OnlySlide.xcodeproj -scheme OnlySlide -destination "platform=macOS" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO 
+        xcodebuild test -project OnlySlide.xcodeproj -scheme OnlySlide -destination "platform=macOS" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
+        
+    - name: Build XCFrameworks
+      run: |
+        chmod +x ./scripts/build-xcframeworks.sh
+        ./scripts/build-xcframeworks.sh
+        
+    - name: Archive XCFrameworks
+      uses: actions/upload-artifact@v3
+      with:
+        name: xcframeworks
+        path: build/xcframeworks/ 
