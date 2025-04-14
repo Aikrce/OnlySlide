@@ -6,6 +6,16 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		52CDCC412DAD32FF00DC06A6 /* OnlySlideCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 52CDCC372DAD32FF00DC06A6 /* OnlySlideCore.framework */; };
+		52CDCC4C2DAD32FF00DC06A6 /* OnlySlideCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 52CDCC372DAD32FF00DC06A6 /* OnlySlideCore.framework */; };
+		52CDCC4D2DAD32FF00DC06A6 /* OnlySlideCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 52CDCC372DAD32FF00DC06A6 /* OnlySlideCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		52CDCC642DAD332500DC06A6 /* OnlySlideUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 52CDCC5A2DAD332500DC06A6 /* OnlySlideUI.framework */; };
+		52CDCC6F2DAD332500DC06A6 /* OnlySlideUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 52CDCC5A2DAD332500DC06A6 /* OnlySlideUI.framework */; };
+		52CDCC702DAD332500DC06A6 /* OnlySlideUI.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 52CDCC5A2DAD332500DC06A6 /* OnlySlideUI.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		52CDCC8E2DAD3E7900DC06A6 /* OnlySlideCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 52CDCC372DAD32FF00DC06A6 /* OnlySlideCore.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		52C2FA762DABEBB600E61D1F /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -21,12 +31,80 @@
 			remoteGlobalIDString = 52C2FA5D2DABEBB500E61D1F;
 			remoteInfo = OnlySlide;
 		};
+		52CDCC422DAD32FF00DC06A6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 52C2FA562DABEBB500E61D1F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 52CDCC362DAD32FF00DC06A6;
+			remoteInfo = OnlySlideCore;
+		};
+		52CDCC442DAD32FF00DC06A6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 52C2FA562DABEBB500E61D1F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 52C2FA5D2DABEBB500E61D1F;
+			remoteInfo = OnlySlide;
+		};
+		52CDCC4A2DAD32FF00DC06A6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 52C2FA562DABEBB500E61D1F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 52CDCC362DAD32FF00DC06A6;
+			remoteInfo = OnlySlideCore;
+		};
+		52CDCC652DAD332500DC06A6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 52C2FA562DABEBB500E61D1F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 52CDCC592DAD332500DC06A6;
+			remoteInfo = OnlySlideUI;
+		};
+		52CDCC672DAD332500DC06A6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 52C2FA562DABEBB500E61D1F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 52C2FA5D2DABEBB500E61D1F;
+			remoteInfo = OnlySlide;
+		};
+		52CDCC6D2DAD332500DC06A6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 52C2FA562DABEBB500E61D1F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 52CDCC592DAD332500DC06A6;
+			remoteInfo = OnlySlideUI;
+		};
+		52CDCC902DAD3E7900DC06A6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 52C2FA562DABEBB500E61D1F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 52CDCC362DAD32FF00DC06A6;
+			remoteInfo = OnlySlideCore;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		524454E82DAD2762007F5590 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				52CDCC702DAD332500DC06A6 /* OnlySlideUI.framework in Embed Frameworks */,
+				52CDCC4D2DAD32FF00DC06A6 /* OnlySlideCore.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		52C2FA5E2DABEBB500E61D1F /* OnlySlide.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OnlySlide.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		52C2FA752DABEBB600E61D1F /* OnlySlideTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OnlySlideTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		52C2FA7F2DABEBB600E61D1F /* OnlySlideUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OnlySlideUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		52CDCC372DAD32FF00DC06A6 /* OnlySlideCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = OnlySlideCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		52CDCC402DAD32FF00DC06A6 /* OnlySlideCoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OnlySlideCoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		52CDCC5A2DAD332500DC06A6 /* OnlySlideUI.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = OnlySlideUI.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		52CDCC632DAD332500DC06A6 /* OnlySlideUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OnlySlideUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -37,9 +115,33 @@
 			);
 			target = 52C2FA5D2DABEBB500E61D1F /* OnlySlide */;
 		};
+		52CDCC512DAD32FF00DC06A6 /* Exceptions for "OnlySlideCore" folder in "OnlySlideCore" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			publicHeaders = (
+				OnlySlideCore.h,
+			);
+			target = 52CDCC362DAD32FF00DC06A6 /* OnlySlideCore */;
+		};
+		52CDCC742DAD332500DC06A6 /* Exceptions for "OnlySlideUI" folder in "OnlySlideUI" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			publicHeaders = (
+				OnlySlideUI.h,
+			);
+			target = 52CDCC592DAD332500DC06A6 /* OnlySlideUI */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		524454E02DAD2762007F5590 /* OnlySlideCoreTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = OnlySlideCoreTests;
+			sourceTree = "<group>";
+		};
+		524455042DAD278D007F5590 /* OnlySlideUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = OnlySlideUITests;
+			sourceTree = "<group>";
+		};
 		527F2D912DABF1EF00459A7B /* src */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = src;
@@ -68,6 +170,32 @@
 			path = OnlySlideUITests;
 			sourceTree = "<group>";
 		};
+		52CDCC382DAD32FF00DC06A6 /* OnlySlideCore */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				52CDCC512DAD32FF00DC06A6 /* Exceptions for "OnlySlideCore" folder in "OnlySlideCore" target */,
+			);
+			path = OnlySlideCore;
+			sourceTree = "<group>";
+		};
+		52CDCC462DAD32FF00DC06A6 /* OnlySlideCoreTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = OnlySlideCoreTests;
+			sourceTree = "<group>";
+		};
+		52CDCC5B2DAD332500DC06A6 /* OnlySlideUI */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				52CDCC742DAD332500DC06A6 /* Exceptions for "OnlySlideUI" folder in "OnlySlideUI" target */,
+			);
+			path = OnlySlideUI;
+			sourceTree = "<group>";
+		};
+		52CDCC692DAD332500DC06A6 /* OnlySlideUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = OnlySlideUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -75,6 +203,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				52CDCC6F2DAD332500DC06A6 /* OnlySlideUI.framework in Frameworks */,
+				52CDCC4C2DAD32FF00DC06A6 /* OnlySlideCore.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -92,6 +222,37 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		52CDCC342DAD32FF00DC06A6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		52CDCC3D2DAD32FF00DC06A6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				52CDCC412DAD32FF00DC06A6 /* OnlySlideCore.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		52CDCC572DAD332500DC06A6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				52CDCC8E2DAD3E7900DC06A6 /* OnlySlideCore.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		52CDCC602DAD332500DC06A6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				52CDCC642DAD332500DC06A6 /* OnlySlideUI.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -103,6 +264,13 @@
 				52C2FA602DABEBB500E61D1F /* OnlySlide */,
 				52C2FA782DABEBB600E61D1F /* OnlySlideTests */,
 				52C2FA822DABEBB600E61D1F /* OnlySlideUITests */,
+				524454E02DAD2762007F5590 /* OnlySlideCoreTests */,
+				524455042DAD278D007F5590 /* OnlySlideUITests */,
+				52CDCC382DAD32FF00DC06A6 /* OnlySlideCore */,
+				52CDCC462DAD32FF00DC06A6 /* OnlySlideCoreTests */,
+				52CDCC5B2DAD332500DC06A6 /* OnlySlideUI */,
+				52CDCC692DAD332500DC06A6 /* OnlySlideUITests */,
+				52CDCC8D2DAD3E7900DC06A6 /* Frameworks */,
 				52C2FA5F2DABEBB500E61D1F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -113,11 +281,39 @@
 				52C2FA5E2DABEBB500E61D1F /* OnlySlide.app */,
 				52C2FA752DABEBB600E61D1F /* OnlySlideTests.xctest */,
 				52C2FA7F2DABEBB600E61D1F /* OnlySlideUITests.xctest */,
+				52CDCC372DAD32FF00DC06A6 /* OnlySlideCore.framework */,
+				52CDCC402DAD32FF00DC06A6 /* OnlySlideCoreTests.xctest */,
+				52CDCC5A2DAD332500DC06A6 /* OnlySlideUI.framework */,
+				52CDCC632DAD332500DC06A6 /* OnlySlideUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
+		52CDCC8D2DAD3E7900DC06A6 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
+
+/* Begin PBXHeadersBuildPhase section */
+		52CDCC322DAD32FF00DC06A6 /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		52CDCC552DAD332500DC06A6 /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
 		52C2FA5D2DABEBB500E61D1F /* OnlySlide */ = {
@@ -127,10 +323,13 @@
 				52C2FA5A2DABEBB500E61D1F /* Sources */,
 				52C2FA5B2DABEBB500E61D1F /* Frameworks */,
 				52C2FA5C2DABEBB500E61D1F /* Resources */,
+				524454E82DAD2762007F5590 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				52CDCC4B2DAD32FF00DC06A6 /* PBXTargetDependency */,
+				52CDCC6E2DAD332500DC06A6 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				527F2D912DABF1EF00459A7B /* src */,
@@ -190,6 +389,101 @@
 			productReference = 52C2FA7F2DABEBB600E61D1F /* OnlySlideUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		52CDCC362DAD32FF00DC06A6 /* OnlySlideCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 52CDCC4E2DAD32FF00DC06A6 /* Build configuration list for PBXNativeTarget "OnlySlideCore" */;
+			buildPhases = (
+				52CDCC322DAD32FF00DC06A6 /* Headers */,
+				52CDCC332DAD32FF00DC06A6 /* Sources */,
+				52CDCC342DAD32FF00DC06A6 /* Frameworks */,
+				52CDCC352DAD32FF00DC06A6 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				52CDCC382DAD32FF00DC06A6 /* OnlySlideCore */,
+			);
+			name = OnlySlideCore;
+			packageProductDependencies = (
+			);
+			productName = OnlySlideCore;
+			productReference = 52CDCC372DAD32FF00DC06A6 /* OnlySlideCore.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+		52CDCC3F2DAD32FF00DC06A6 /* OnlySlideCoreTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 52CDCC522DAD32FF00DC06A6 /* Build configuration list for PBXNativeTarget "OnlySlideCoreTests" */;
+			buildPhases = (
+				52CDCC3C2DAD32FF00DC06A6 /* Sources */,
+				52CDCC3D2DAD32FF00DC06A6 /* Frameworks */,
+				52CDCC3E2DAD32FF00DC06A6 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				52CDCC432DAD32FF00DC06A6 /* PBXTargetDependency */,
+				52CDCC452DAD32FF00DC06A6 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				52CDCC462DAD32FF00DC06A6 /* OnlySlideCoreTests */,
+			);
+			name = OnlySlideCoreTests;
+			packageProductDependencies = (
+			);
+			productName = OnlySlideCoreTests;
+			productReference = 52CDCC402DAD32FF00DC06A6 /* OnlySlideCoreTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		52CDCC592DAD332500DC06A6 /* OnlySlideUI */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 52CDCC712DAD332500DC06A6 /* Build configuration list for PBXNativeTarget "OnlySlideUI" */;
+			buildPhases = (
+				52CDCC552DAD332500DC06A6 /* Headers */,
+				52CDCC562DAD332500DC06A6 /* Sources */,
+				52CDCC572DAD332500DC06A6 /* Frameworks */,
+				52CDCC582DAD332500DC06A6 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				52CDCC912DAD3E7900DC06A6 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				52CDCC5B2DAD332500DC06A6 /* OnlySlideUI */,
+			);
+			name = OnlySlideUI;
+			packageProductDependencies = (
+			);
+			productName = OnlySlideUI;
+			productReference = 52CDCC5A2DAD332500DC06A6 /* OnlySlideUI.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+		52CDCC622DAD332500DC06A6 /* OnlySlideUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 52CDCC752DAD332500DC06A6 /* Build configuration list for PBXNativeTarget "OnlySlideUITests" */;
+			buildPhases = (
+				52CDCC5F2DAD332500DC06A6 /* Sources */,
+				52CDCC602DAD332500DC06A6 /* Frameworks */,
+				52CDCC612DAD332500DC06A6 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				52CDCC662DAD332500DC06A6 /* PBXTargetDependency */,
+				52CDCC682DAD332500DC06A6 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				52CDCC692DAD332500DC06A6 /* OnlySlideUITests */,
+			);
+			name = OnlySlideUITests;
+			packageProductDependencies = (
+			);
+			productName = OnlySlideUITests;
+			productReference = 52CDCC632DAD332500DC06A6 /* OnlySlideUITests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -208,6 +502,20 @@
 						TestTargetID = 52C2FA5D2DABEBB500E61D1F;
 					};
 					52C2FA7E2DABEBB600E61D1F = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = 52C2FA5D2DABEBB500E61D1F;
+					};
+					52CDCC362DAD32FF00DC06A6 = {
+						CreatedOnToolsVersion = 16.2;
+					};
+					52CDCC3F2DAD32FF00DC06A6 = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = 52C2FA5D2DABEBB500E61D1F;
+					};
+					52CDCC592DAD332500DC06A6 = {
+						CreatedOnToolsVersion = 16.2;
+					};
+					52CDCC622DAD332500DC06A6 = {
 						CreatedOnToolsVersion = 16.2;
 						TestTargetID = 52C2FA5D2DABEBB500E61D1F;
 					};
@@ -230,6 +538,10 @@
 				52C2FA5D2DABEBB500E61D1F /* OnlySlide */,
 				52C2FA742DABEBB600E61D1F /* OnlySlideTests */,
 				52C2FA7E2DABEBB600E61D1F /* OnlySlideUITests */,
+				52CDCC362DAD32FF00DC06A6 /* OnlySlideCore */,
+				52CDCC3F2DAD32FF00DC06A6 /* OnlySlideCoreTests */,
+				52CDCC592DAD332500DC06A6 /* OnlySlideUI */,
+				52CDCC622DAD332500DC06A6 /* OnlySlideUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -250,6 +562,34 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		52C2FA7D2DABEBB600E61D1F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		52CDCC352DAD32FF00DC06A6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		52CDCC3E2DAD32FF00DC06A6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		52CDCC582DAD332500DC06A6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		52CDCC612DAD332500DC06A6 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -280,6 +620,34 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		52CDCC332DAD32FF00DC06A6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		52CDCC3C2DAD32FF00DC06A6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		52CDCC562DAD332500DC06A6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		52CDCC5F2DAD332500DC06A6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -292,6 +660,41 @@
 			isa = PBXTargetDependency;
 			target = 52C2FA5D2DABEBB500E61D1F /* OnlySlide */;
 			targetProxy = 52C2FA802DABEBB600E61D1F /* PBXContainerItemProxy */;
+		};
+		52CDCC432DAD32FF00DC06A6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 52CDCC362DAD32FF00DC06A6 /* OnlySlideCore */;
+			targetProxy = 52CDCC422DAD32FF00DC06A6 /* PBXContainerItemProxy */;
+		};
+		52CDCC452DAD32FF00DC06A6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 52C2FA5D2DABEBB500E61D1F /* OnlySlide */;
+			targetProxy = 52CDCC442DAD32FF00DC06A6 /* PBXContainerItemProxy */;
+		};
+		52CDCC4B2DAD32FF00DC06A6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 52CDCC362DAD32FF00DC06A6 /* OnlySlideCore */;
+			targetProxy = 52CDCC4A2DAD32FF00DC06A6 /* PBXContainerItemProxy */;
+		};
+		52CDCC662DAD332500DC06A6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 52CDCC592DAD332500DC06A6 /* OnlySlideUI */;
+			targetProxy = 52CDCC652DAD332500DC06A6 /* PBXContainerItemProxy */;
+		};
+		52CDCC682DAD332500DC06A6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 52C2FA5D2DABEBB500E61D1F /* OnlySlide */;
+			targetProxy = 52CDCC672DAD332500DC06A6 /* PBXContainerItemProxy */;
+		};
+		52CDCC6E2DAD332500DC06A6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 52CDCC592DAD332500DC06A6 /* OnlySlideUI */;
+			targetProxy = 52CDCC6D2DAD332500DC06A6 /* PBXContainerItemProxy */;
+		};
+		52CDCC912DAD3E7900DC06A6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 52CDCC362DAD32FF00DC06A6 /* OnlySlideCore */;
+			targetProxy = 52CDCC902DAD3E7900DC06A6 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -584,6 +987,294 @@
 			};
 			name = Release;
 		};
+		52CDCC4F2DAD32FF00DC06A6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = MK33K44CKA;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
+				"FRAMEWORK_SEARCH_PATHS[arch=*]" = (
+					"$(SRCROOT)/src/OnlySlideCore\n",
+					"$(SRCROOT)/src/OnlySlideUI",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = (
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+				PRODUCT_BUNDLE_IDENTIFIER = QianYanNi.OnlySlideCore;
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SDKROOT = auto;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INSTALL_OBJC_HEADER = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+				XROS_DEPLOYMENT_TARGET = 2.2;
+			};
+			name = Debug;
+		};
+		52CDCC502DAD32FF00DC06A6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = MK33K44CKA;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
+				"FRAMEWORK_SEARCH_PATHS[arch=*]" = (
+					"$(SRCROOT)/src/OnlySlideCore\n",
+					"$(SRCROOT)/src/OnlySlideUI",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = (
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+				PRODUCT_BUNDLE_IDENTIFIER = QianYanNi.OnlySlideCore;
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SDKROOT = auto;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INSTALL_OBJC_HEADER = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+				XROS_DEPLOYMENT_TARGET = 2.2;
+			};
+			name = Release;
+		};
+		52CDCC532DAD32FF00DC06A6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MK33K44CKA;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = QianYanNi.OnlySlideCoreTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OnlySlide.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/OnlySlide";
+				XROS_DEPLOYMENT_TARGET = 2.2;
+			};
+			name = Debug;
+		};
+		52CDCC542DAD32FF00DC06A6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MK33K44CKA;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = QianYanNi.OnlySlideCoreTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OnlySlide.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/OnlySlide";
+				XROS_DEPLOYMENT_TARGET = 2.2;
+			};
+			name = Release;
+		};
+		52CDCC722DAD332500DC06A6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = MK33K44CKA;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				"HEADER_SEARCH_PATHS[arch=*]" = (
+					"$(SRCROOT)/src/OnlySlideCore\n",
+					"$(SRCROOT)/src/OnlySlideUI",
+				);
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = (
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+				PRODUCT_BUNDLE_IDENTIFIER = QianYanNi.OnlySlideUI;
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SDKROOT = auto;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INSTALL_OBJC_HEADER = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+				XROS_DEPLOYMENT_TARGET = 2.2;
+			};
+			name = Debug;
+		};
+		52CDCC732DAD332500DC06A6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = MK33K44CKA;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				"HEADER_SEARCH_PATHS[arch=*]" = (
+					"$(SRCROOT)/src/OnlySlideCore\n",
+					"$(SRCROOT)/src/OnlySlideUI",
+				);
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = (
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+				PRODUCT_BUNDLE_IDENTIFIER = QianYanNi.OnlySlideUI;
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SDKROOT = auto;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INSTALL_OBJC_HEADER = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+				XROS_DEPLOYMENT_TARGET = 2.2;
+			};
+			name = Release;
+		};
+		52CDCC762DAD332500DC06A6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MK33K44CKA;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = QianYanNi.OnlySlideUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OnlySlide.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/OnlySlide";
+				XROS_DEPLOYMENT_TARGET = 2.2;
+			};
+			name = Debug;
+		};
+		52CDCC772DAD332500DC06A6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MK33K44CKA;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = QianYanNi.OnlySlideUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OnlySlide.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/OnlySlide";
+				XROS_DEPLOYMENT_TARGET = 2.2;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -619,6 +1310,42 @@
 			buildConfigurations = (
 				52C2FA912DABEBB600E61D1F /* Debug */,
 				52C2FA922DABEBB600E61D1F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		52CDCC4E2DAD32FF00DC06A6 /* Build configuration list for PBXNativeTarget "OnlySlideCore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				52CDCC4F2DAD32FF00DC06A6 /* Debug */,
+				52CDCC502DAD32FF00DC06A6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		52CDCC522DAD32FF00DC06A6 /* Build configuration list for PBXNativeTarget "OnlySlideCoreTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				52CDCC532DAD32FF00DC06A6 /* Debug */,
+				52CDCC542DAD32FF00DC06A6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		52CDCC712DAD332500DC06A6 /* Build configuration list for PBXNativeTarget "OnlySlideUI" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				52CDCC722DAD332500DC06A6 /* Debug */,
+				52CDCC732DAD332500DC06A6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		52CDCC752DAD332500DC06A6 /* Build configuration list for PBXNativeTarget "OnlySlideUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				52CDCC762DAD332500DC06A6 /* Debug */,
+				52CDCC772DAD332500DC06A6 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

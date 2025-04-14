@@ -17,10 +17,18 @@ jobs:
     - name: Select Xcode
       run: sudo xcode-select -switch /Applications/Xcode.app
       
-    - name: Build
+    - name: Build iOS
       run: |
         xcodebuild clean build -project OnlySlide.xcodeproj -scheme OnlySlide -destination "platform=iOS Simulator,name=iPhone 14" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
         
-    - name: Run tests
+    - name: Build macOS
       run: |
-        xcodebuild test -project OnlySlide.xcodeproj -scheme OnlySlide -destination "platform=iOS Simulator,name=iPhone 14" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO 
+        xcodebuild clean build -project OnlySlide.xcodeproj -scheme OnlySlide -destination "platform=macOS" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
+        
+    - name: Run iOS tests
+      run: |
+        xcodebuild test -project OnlySlide.xcodeproj -scheme OnlySlide -destination "platform=iOS Simulator,name=iPhone 14" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
+        
+    - name: Run macOS tests
+      run: |
+        xcodebuild test -project OnlySlide.xcodeproj -scheme OnlySlide -destination "platform=macOS" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO 

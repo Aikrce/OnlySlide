@@ -157,16 +157,38 @@ swiftlint
 - 函数体不超过150行
 - 类型体不超过300行
 
-# Xcode嵌入式框架（Framework Targets）实施指南
+# XCFramework实施方案
 
-## 1. 创建Framework目标
+本方案旨在为OnlySlide项目创建跨平台XCFramework，同时保持现有的项目结构不变。通过引用方式使用现有文件，实现iOS和macOS平台的支持。
 
-### 1.1 创建OnlySlideCore框架
+## 1. 项目结构保持不变
+
+现有的项目结构将保持不变：
+
+```
+src/
+├── OnlySlideCore/         // 核心逻辑模块
+│   ├── CoreData/          // 数据持久化
+│   ├── Models/            // 数据模型
+│   ├── Protocols/         // 接口定义
+│   └── Services/          // 业务服务
+└── OnlySlideUI/           // UI模块
+    ├── DesignSystem/      // 设计系统
+    ├── PlatformAdapters/  // 平台适配
+    ├── State/             // 状态管理
+    ├── ViewModels/        // 视图模型
+    ├── ViewModifiers/     // 视图修饰器
+    └── Views/             // 视图组件
+```
+
+## 2. 创建XCFramework目标
+
+### 2.1 创建OnlySlideCore框架目标
 
 1. 打开OnlySlide.xcodeproj
 2. 在Xcode菜单中选择 **File > New > Target...**
 3. 在弹出的窗口中，选择 **Framework & Library** 选项卡
-4. 在iOS部分，选择 **Framework**
+4. 选择 **Framework**
 5. 点击 **Next**
 6. 在配置页面上：
    - Product Name: 输入 `OnlySlideCore`
@@ -175,55 +197,106 @@ swiftlint
    - Bundle Identifier: 自动填充，通常格式为 `com.yourcompany.OnlySlideCore`
    - Language: 选择 **Swift**
    - Include Tests: 勾选
+   - Platforms: 选择 **iOS** 和 **macOS**
 7. 点击 **Finish**
 8. 在弹出的对话框中，选择 **Activate scheme** (激活方案)
 
-### 1.2 创建OnlySlideUI框架
+### 2.2 创建OnlySlideUI框架目标
 
 重复上述步骤，但在第6步中将产品名称改为 `OnlySlideUI`
 
-## 2. 配置Framework目标
+## 3. 配置Framework目标
 
-### 2.1 设置OnlySlideCore的部署目标
+### 3.1 设置OnlySlideCore的构建设置
 
 1. 在Xcode左侧的项目导航器中，选中 **OnlySlideCore** 目标
-2. 在 **General** 选项卡中：
-   - Deployment Info > iOS部分：将最低部署目标设置为 **iOS 18.0**
-   - Deployment Info > macOS部分：将最低部署目标设置为 **macOS 15.0**
+2. 切换到 **Build Settings** 选项卡
+3. 设置以下构建选项：
+   ```
+   SUPPORTED_PLATFORMS = iphoneos iphonesimulator macosx
+   SUPPORTS_MACCATALYST = NO
+   BUILD_LIBRARY_FOR_DISTRIBUTION = YES
+   SKIP_INSTALL = NO
+   ```
+4. 设置部署目标：
+   - iOS Deployment Target = 18.0
+   - macOS Deployment Target = 15.0
+5. 设置架构支持：
+   ```
+   VALID_ARCHS[sdk=iphoneos*] = arm64
+   VALID_ARCHS[sdk=iphonesimulator*] = x86_64 arm64
+   VALID_ARCHS[sdk=macosx*] = x86_64 arm64
+   ```
 
-### 2.2 设置OnlySlideUI的部署目标
+### 3.2 设置OnlySlideUI的构建设置
 
-重复上述步骤，为OnlySlideUI配置相同的部署目标
+重复上述步骤，为OnlySlideUI配置相同的构建选项
 
-## 3. 配置源文件引用
+## 方案4：使用Xcode的引用路径
 
-### 3.1 移除默认生成的文件
+### 1. 打开Xcode项目
 
-1. 在Xcode导航器中，展开 **OnlySlideCore** 组
-2. 找到自动生成的 `OnlySlideCore.h` 和其他文件
-3. 右键单击 > 选择 **Delete**
-4. 在弹出的对话框中，选择 **Move to Trash**
-5. 对 **OnlySlideUI** 重复相同操作
+- 双击 `OnlySlide.xcodeproj` 文件以打开项目。
 
-### 3.2 添加OnlySlideCore的源文件
+### 2. 选择目标
 
-1. 右键单击 **OnlySlideCore** 组
-2. 选择 **Add Files to "OnlySlideCore"...**
-3. 导航到项目的 **src/OnlySlideCore** 目录
-4. 选择所有需要包含的子目录（Models, Services, Protocols, CoreData等）
-5. 配置添加选项：
-   - **取消勾选** "Copy items if needed"（不复制文件）
-   - 选择 **Create groups** (为添加的文件创建组)
-   - Targets部分：确保 **OnlySlideCore** 被勾选
-6. 点击 **Add**
+- 在左侧导航栏中，选择您的项目（OnlySlide）。
+- 然后选择 **OnlySlideCore** 目标。
 
-### 3.3 添加OnlySlideUI的源文件
+### 3. 进入Build Settings
 
-重复上述步骤，但选择 **src/OnlySlideUI** 目录下的文件，并确保目标是 **OnlySlideUI**
+- 切换到 **Build Settings** 选项卡。
 
-## 4. 配置框架依赖关系
+### 4. 添加Header Search Paths
 
-### 4.1 设置OnlySlideUI依赖OnlySlideCore
+1. **找到Header Search Paths**：
+   - 在搜索框中输入“Header Search Paths”以快速找到该设置。
+
+2. **展开Debug和Release**：
+   - 点击 **Header Search Paths** 旁边的箭头，展开Debug和Release配置。
+
+3. **为Debug添加路径**：
+   - 在Debug下，双击空白区域，添加以下路径：
+     ```
+     $(SRCROOT)/src/OnlySlideCore
+     $(SRCROOT)/src/OnlySlideUI
+     ```
+
+4. **为Release添加路径**：
+   - 在Release下，双击空白区域，添加相同的路径：
+     ```
+     $(SRCROOT)/src/OnlySlideCore
+     $(SRCROOT)/src/OnlySlideUI
+     ```
+
+### 5. 确保路径设置为递归
+
+- 在添加路径时，确保将路径设置为递归（如果有此选项），以便Xcode能够找到子目录中的文件。
+
+### 6. 保存设置
+
+- 完成后，确保保存项目。
+
+### 7. 验证
+
+- 在Swift文件中尝试导入模块：
+  ```swift
+  import OnlySlideCore
+  import OnlySlideUI
+  ```
+
+- 按 **Command+B** 构建项目，确保没有错误。
+
+### 8. 处理可能的错误
+
+- 如果遇到找不到模块的错误，请检查路径是否正确设置，并确保文件在指定目录中。
+
+通过这种方式，您可以确保Xcode能够找到源文件，而不需要移动或复制文件。这种方法灵活且不侵入性，适合保持现有项目结构。
+
+
+## 5. 配置框架依赖关系
+
+### 5.1 设置OnlySlideUI依赖OnlySlideCore
 
 1. 在项目导航器中，选择 **OnlySlideUI** 目标
 2. 切换到 **General** 选项卡
@@ -234,7 +307,7 @@ swiftlint
 7. 在 "Embed" 下拉菜单中，选择 **Do Not Embed**
 8. 点击 **Add**
 
-### 4.2 设置主应用依赖两个框架
+### 5.2 设置主应用依赖两个框架
 
 1. 在项目导航器中，选择 **OnlySlide** 主应用目标
 2. 切换到 **General** 选项卡
@@ -244,9 +317,9 @@ swiftlint
 6. 再次点击 **+** 按钮
 7. 添加 **OnlySlideUI.framework**，设置 "Embed" 为 **Embed & Sign**
 
-## 5. 配置访问级别
+## 6. 配置访问级别
 
-### 5.1 在OnlySlideCore中添加公开访问修饰符
+### 6.1 在OnlySlideCore中添加公开访问修饰符
 
 1. 打开 **src/OnlySlideCore** 中的关键文件
 2. 添加 `public` 修饰符到需要暴露的类型和成员:
@@ -270,80 +343,272 @@ public struct Template {
 }
 ```
 
-### 5.2 在OnlySlideUI中添加公开访问修饰符
+### 6.2 在OnlySlideUI中添加公开访问修饰符
 
 类似地，为OnlySlideUI中需要暴露的类型添加公开访问修饰符
 
-## 6. 构建设置优化
+## 7. 处理平台特定代码
 
-### 6.1 配置OnlySlideCore的构建设置
+### 7.1 使用条件编译
 
-1. 选择 **OnlySlideCore** 目标
-2. 切换到 **Build Settings** 选项卡
-3. 在搜索框中输入 `build lib`
-4. 找到 **Build Libraries for Distribution** 设置并将其设为 **Yes**
-5. 搜索 `always embed`，确认 **Always Embed Swift Standard Libraries** 设为 **No**
-
-### 6.2 配置OnlySlideUI的构建设置
-
-重复上述步骤，为OnlySlideUI设置相同的构建选项
-
-### 6.3 配置主应用构建设置
-
-1. 选择主应用目标
-2. 搜索 `always embed`
-3. 将 **Always Embed Swift Standard Libraries** 设为 **Yes**
-
-## 7. 验证配置
-
-### 7.1 构建项目
-
-1. 在Xcode工具栏中，选择主应用方案
-2. 按 **Command+B** 构建项目
-3. 确保构建成功，无编译错误
-
-### 7.2 测试模块导入
-
-在主应用的任意源文件顶部添加:
+对于需要针对不同平台实现的功能，使用条件编译：
 
 ```swift
-import OnlySlideCore
-import OnlySlideUI
+#if os(iOS)
+public class IOSFileManager: FileManaging {
+    public func openFile() -> URL? {
+        // iOS特定实现
+    }
+}
+#elseif os(macOS)
+public class MacOSFileManager: FileManaging {
+    public func openFile() -> URL? {
+        // macOS特定实现
+    }
+}
+#endif
+
+// 平台无关的工厂方法
+public func createFileManager() -> FileManaging {
+    #if os(iOS)
+    return IOSFileManager()
+    #elseif os(macOS)
+    return MacOSFileManager()
+    #endif
+}
 ```
 
-确保没有报错，表示框架正确配置并可使用
+### 7.2 使用协议抽象平台差异
 
-## 8. 解决常见问题
+```swift
+// 在OnlySlideCore中定义协议
+public protocol PlatformAdapter {
+    func getScreenSize() -> CGSize
+    func openDocument() -> URL?
+}
 
-### 8.1 找不到模块错误
+// 在OnlySlideUI中实现平台特定适配器
+#if os(iOS)
+public class IOSPlatformAdapter: PlatformAdapter {
+    // iOS实现
+}
+#elseif os(macOS)
+public class MacOSPlatformAdapter: PlatformAdapter {
+    // macOS实现
+}
+#endif
+```
+
+## 8. 创建XCFramework构建脚本
+
+创建一个脚本文件 `scripts/build-xcframeworks.sh`：
+
+```bash
+#!/bin/bash
+
+# 设置变量
+PROJECT_NAME="OnlySlide"
+SCHEME_CORE="OnlySlideCore"
+SCHEME_UI="OnlySlideUI"
+BUILD_DIR="./build"
+XCFRAMEWORK_DIR="${BUILD_DIR}/xcframeworks"
+
+# 清理旧的构建产物
+rm -rf "${BUILD_DIR}"
+mkdir -p "${XCFRAMEWORK_DIR}"
+
+# 构建OnlySlideCore
+echo "Building ${SCHEME_CORE}..."
+
+# iOS设备
+xcodebuild archive \
+  -project "${PROJECT_NAME}.xcodeproj" \
+  -scheme "${SCHEME_CORE}" \
+  -destination "generic/platform=iOS" \
+  -archivePath "${BUILD_DIR}/${SCHEME_CORE}-iOS" \
+  SKIP_INSTALL=NO \
+  BUILD_LIBRARY_FOR_DISTRIBUTION=YES
+
+# iOS模拟器
+xcodebuild archive \
+  -project "${PROJECT_NAME}.xcodeproj" \
+  -scheme "${SCHEME_CORE}" \
+  -destination "generic/platform=iOS Simulator" \
+  -archivePath "${BUILD_DIR}/${SCHEME_CORE}-iOS-Simulator" \
+  SKIP_INSTALL=NO \
+  BUILD_LIBRARY_FOR_DISTRIBUTION=YES
+
+# macOS
+xcodebuild archive \
+  -project "${PROJECT_NAME}.xcodeproj" \
+  -scheme "${SCHEME_CORE}" \
+  -destination "generic/platform=macOS" \
+  -archivePath "${BUILD_DIR}/${SCHEME_CORE}-macOS" \
+  SKIP_INSTALL=NO \
+  BUILD_LIBRARY_FOR_DISTRIBUTION=YES
+
+# 创建XCFramework
+xcodebuild -create-xcframework \
+  -framework "${BUILD_DIR}/${SCHEME_CORE}-iOS.framework" \
+  -framework "${BUILD_DIR}/${SCHEME_CORE}-iOS-Simulator.framework" \
+  -framework "${BUILD_DIR}/${SCHEME_CORE}-macOS.framework" \
+  -output "${XCFRAMEWORK_DIR}/${SCHEME_CORE}.xcframework"
+
+# 构建OnlySlideUI (类似步骤)
+echo "Building ${SCHEME_UI}..."
+
+# iOS设备
+xcodebuild archive \
+  -project "${PROJECT_NAME}.xcodeproj" \
+  -scheme "${SCHEME_UI}" \
+  -destination "generic/platform=iOS" \
+  -archivePath "${BUILD_DIR}/${SCHEME_UI}-iOS" \
+  SKIP_INSTALL=NO \
+  BUILD_LIBRARY_FOR_DISTRIBUTION=YES
+
+# iOS模拟器
+xcodebuild archive \
+  -project "${PROJECT_NAME}.xcodeproj" \
+  -scheme "${SCHEME_UI}" \
+  -destination "generic/platform=iOS Simulator" \
+  -archivePath "${BUILD_DIR}/${SCHEME_UI}-iOS-Simulator" \
+  SKIP_INSTALL=NO \
+  BUILD_LIBRARY_FOR_DISTRIBUTION=YES
+
+# macOS
+xcodebuild archive \
+  -project "${PROJECT_NAME}.xcodeproj" \
+  -scheme "${SCHEME_UI}" \
+  -destination "generic/platform=macOS" \
+  -archivePath "${BUILD_DIR}/${SCHEME_UI}-macOS" \
+  SKIP_INSTALL=NO \
+  BUILD_LIBRARY_FOR_DISTRIBUTION=YES
+
+# 创建XCFramework
+xcodebuild -create-xcframework \
+  -framework "${BUILD_DIR}/${SCHEME_UI}-iOS.framework" \
+  -framework "${BUILD_DIR}/${SCHEME_UI}-iOS-Simulator.framework" \
+  -framework "${BUILD_DIR}/${SCHEME_UI}-macOS.framework" \
+  -output "${XCFRAMEWORK_DIR}/${SCHEME_UI}.xcframework"
+
+echo "XCFrameworks built successfully at ${XCFRAMEWORK_DIR}"
+```
+
+## 9. 更新CI配置
+
+更新GitHub Actions工作流配置 `.github/workflows/ci.yml`：
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: macos-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Select Xcode
+      run: sudo xcode-select -switch /Applications/Xcode.app
+      
+    - name: Build iOS
+      run: |
+        xcodebuild clean build -project OnlySlide.xcodeproj -scheme OnlySlide -destination "platform=iOS Simulator,name=iPhone 14" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
+        
+    - name: Build macOS
+      run: |
+        xcodebuild clean build -project OnlySlide.xcodeproj -scheme OnlySlide -destination "platform=macOS" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
+        
+    - name: Run iOS tests
+      run: |
+        xcodebuild test -project OnlySlide.xcodeproj -scheme OnlySlide -destination "platform=iOS Simulator,name=iPhone 14" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
+        
+    - name: Run macOS tests
+      run: |
+        xcodebuild test -project OnlySlide.xcodeproj -scheme OnlySlide -destination "platform=macOS" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
+        
+    - name: Build XCFrameworks
+      run: |
+        chmod +x ./scripts/build-xcframeworks.sh
+        ./scripts/build-xcframeworks.sh
+        
+    - name: Archive XCFrameworks
+      uses: actions/upload-artifact@v3
+      with:
+        name: xcframeworks
+        path: build/xcframeworks/
+```
+
+## 10. 故障排除指南
+
+### 10.1 找不到模块错误
 
 如果遇到 "No such module 'OnlySlideCore'" 错误:
 1. 清理项目 (Product > Clean Build Folder)
 2. 关闭并重新打开Xcode
-3. 重新构建
+3. 确保Framework正确嵌入到主应用中
+4. 检查Build Phases中的依赖关系
 
-### 8.2 访问控制错误
+### 10.2 访问控制错误
 
 如果遇到 "'XXX' is inaccessible due to 'internal' protection level" 错误:
 1. 确保相关类型和成员已添加 `public` 修饰符
 2. 确保公开类型的初始化方法也标记为 `public`
+3. 检查是否所有需要跨模块访问的属性都标记为 `public`
 
-### 8.3 链接错误
+### 10.3 平台特定编译错误
 
-如果遇到链接错误:
-1. 检查 "Frameworks and Libraries" 部分的配置
-2. 确保 "Embed" 设置正确
-3. 重新构建框架目标
+如果遇到平台特定的编译错误:
+1. 使用条件编译 (`#if os(iOS)` / `#elseif os(macOS)`)隔离平台特定代码
+2. 确保使用了正确的平台API
+3. 考虑使用协议抽象平台差异
 
-完成这些步骤后，您将拥有一个基于Xcode Framework的模块化项目结构，便于维护和开发。
+### 10.4 XCFramework构建错误
 
-# 迁移实施指南
+如果构建XCFramework时遇到错误:
+1. 确保所有依赖关系正确配置
+2. 检查构建设置中的架构配置
+3. 确保脚本中的路径和项目名称正确
 
-这个迁移计划是渐进式的，允许在保持应用功能的同时逐步改进结构。关键点包括：
+## 11. 最佳实践
 
-1. **保持功能连续性**：每个迁移步骤后，确保应用仍然可以构建和运行
-2. **模块测试**：每个模块迁移后，编写单元测试验证功能
-3. **先迁移核心层**：优先处理OnlySlideCore的迁移，然后是OnlySlideUI
-4. **清理临时结构**：完成整体迁移后，移除不再需要的临时文件和目录
+### 11.1 模块化设计
 
-通过按阶段执行这个迁移计划，我们可以平稳地将当前结构转换为理想的模块化架构，同时持续保持项目的可开发性和稳定性。
+- 保持OnlySlideCore不依赖UI框架
+- 通过协议定义模块间接口
+- 使用依赖注入而非直接实例化
+
+### 11.2 跨平台兼容性
+
+- 尽可能使用平台无关的API
+- 将平台特定代码隔离到适配器中
+- 使用条件编译处理不可避免的平台差异
+
+### 11.3 性能优化
+
+- 最小化公共API数量
+- 避免在启动时执行昂贵的操作
+- 使用懒加载初始化大型资源
+
+### 11.4 版本管理
+
+- 在每个模块中维护版本号
+- 使用语义化版本控制
+- 记录API变更到CHANGELOG.md
+
+## 12. 发布流程
+
+1. 更新版本号
+2. 运行测试确保所有平台通过
+3. 构建XCFramework
+4. 更新CHANGELOG.md
+5. 创建Git标签
+6. 发布GitHub Release，附加XCFramework文件
+
